@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pi Theme Builder</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><h1>Pi Theme Builder</h1><p>Shape the colors of your terminal companion.</p></div></div>
+    <div class="actions">
+      <button id="importBtn" type="button">Import theme JSON</button>
+      <button id="importSessionBtn" type="button">Import Pi session JSONL</button>
+      <button id="undoBtn" type="button">Undo</button>
+      <button id="resetBtn" type="button">Reset theme</button>
+      <button class="primary" id="exportBtn" type="button">Export theme</button>
+      <input id="fileInput" type="file" accept=".json,application/json" hidden>
+      <input id="sessionInput" type="file" accept=".jsonl,.jsonl.txt,application/json" hidden>
+    </div>
+  </header>
+  <main>
+    <aside class="panel editor">
+      <div class="editor-head"><div><label for="themeName">Theme name</label><input id="themeName" placeholder="my-theme"></div><div class="preset"><label for="preset">Starting point</label><select id="preset"><option value="dark">Dark</option><option value="light">Light</option></select></div></div>
+      <section class="vars-panel"><div class="section-head"><div><span class="eyebrow">OPTIONAL PALETTE</span><h2>Variables</h2></div><button id="addVarBtn" type="button">+ Add variable</button></div><p class="vars-help">Reuse colors across tokens and export values. References stay portable in Pi themes.</p><div id="varsList"></div></section>
+      <div class="toolbar"><input id="search" placeholder="⌕  Filter tokens..." aria-label="Filter tokens"><span id="count"></span></div>
+      <div id="tokenList" class="token-list"></div>
+    </aside>
+    <section class="panel preview-wrap">
+      <div class="preview-head"><div><span class="eyebrow">LIVE PREVIEW</span><h2 id="previewTitle">Pi session</h2></div><span class="status"><i></i> local preview</span></div>
+      <div class="preview-tools"><div id="previewTabs" class="preview-tabs" role="tablist" aria-label="Preview modes"></div><button id="demoBtn" type="button">Use built-in demo</button><button id="clearSessionBtn" type="button" class="danger-action">Clear imported session</button></div>
+      <div id="sessionNotice" class="session-notice" role="status"></div>
+      <div id="preview" class="terminal" tabindex="0"></div>
+    </section>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
