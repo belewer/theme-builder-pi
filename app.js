@@ -273,12 +273,15 @@ function showSessionNotice(text,kind) { const notice=$('#sessionNotice'); notice
 function toast(text) { const node=$('#toast'); node.textContent=text; node.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>node.classList.remove('show'),2600); }
 function resetDemo() { sessionState={kind:'demo',name:'Built-in comprehensive demo',records:demoRecords}; activeMode='session'; $('#clearSessionBtn').disabled=true; showSessionNotice('Built-in demo active. Imported session content is never saved to localStorage.'); renderPreview(); }
 function clearImported() { resetDemo(); toast('Imported session cleared'); }
+function parseSessionText(text) {
+  if (typeof text !== 'string' || new Blob([text]).size > limits.bytes) throw Error('File exceeds the 5 MB safety limit');
+  const lines=text.split(/\r?\n/); const records=[];
+    for (let i=0;i<lines.length;i++) { const line=lines[i]; if (!line.trim()) continue; if (line.length > limits.field * 2) throw Error(`Line ${i+1} exceeds the safety limit`); let item; try { item=JSON.parse(line); } catch (error) { throw Error(`Malformed JSONL at line ${i+1}`); } if (!isPlainObject(item)) throw Error(`Line ${i+1} is not a JSON object`); const encoded=JSON.stringify(item); if (encoded.length > limits.field * 4) throw Error(`Record ${records.length + 1} is too large`); validateSessionFields(item,`record ${records.length + 1}`); records.push(item); if (records.length > limits.records) throw Error(`Session exceeds ${limits.records} records`); }
+  validateSessionLinks(records); return records;
+}
 function parseSessionFile(file) {
   if (!file) throw Error('No file selected'); if (file.size > limits.bytes) throw Error('File exceeds the 5 MB safety limit');
-  return file.text().then(text => { const lines=text.split(/\r?\n/); const records=[];
-    for (let i=0;i<lines.length;i++) { const line=lines[i]; if (!line.trim()) continue; if (line.length > limits.field * 2) throw Error(`Line ${i+1} exceeds the safety limit`); let item; try { item=JSON.parse(line); } catch (error) { throw Error(`Malformed JSONL at line ${i+1}`); } if (!isPlainObject(item)) throw Error(`Line ${i+1} is not a JSON object`); const encoded=JSON.stringify(item); if (encoded.length > limits.field * 4) throw Error(`Record ${records.length + 1} is too large`); validateSessionFields(item,`record ${records.length + 1}`); records.push(item); if (records.length > limits.records) throw Error(`Session exceeds ${limits.records} records`); }
-    validateSessionLinks(records); return records;
-  });
+  return file.text().then(parseSessionText);
 }
 function validateSessionFields(value, path, depth = 0) {
   if (depth > 20) throw Error(`${path} is nested too deeply`);
@@ -302,8 +305,13 @@ function activePath(records) {
 }
 async function importSession(file) {
   const previous=sessionState;
-  try { const records=await parseSessionFile(file); sessionState={kind:'imported',name:file.name || 'Imported Pi session',records:activePath(records)}; activeMode='session'; $('#clearSessionBtn').disabled=false; showSessionNotice(`Read-only local viewer · ${records.length} records accepted · active branch reconstructed. Pi runtime import/resume is not available here.`); renderPreview(); toast('Pi session JSONL viewed locally'); }
+  try { const text=await file.text(); const records=parseSessionText(text); sessionState={kind:'imported',name:file.name || 'Imported Pi session',records:activePath(records),rawText:text}; activeMode='session'; $('#clearSessionBtn').disabled=false; showSessionNotice(`Read-only local viewer · ${records.length} records accepted · active branch reconstructed.`); renderPreview(); toast('Pi session JSONL viewed locally'); }
   catch (error) { sessionState=previous; showSessionNotice('Import rejected: '+error.message,'error'); toast('Session not imported: '+error.message); }
+}
+function importSessionText(text,name) {
+  const previous=sessionState;
+  try { const records=parseSessionText(text); sessionState={kind:'imported',name:name || 'Pi session',records:activePath(records),rawText:text}; activeMode='session'; $('#clearSessionBtn').disabled=false; showSessionNotice(`Pi session loaded locally · ${records.length} records accepted · active branch reconstructed.`); renderPreview(); toast('Pi session loaded'); }
+  catch (error) { sessionState=previous; showSessionNotice('Session rejected: '+error.message,'error'); toast('Session not loaded: '+error.message); }
 }
 
 function validateInteractive() { validateMap(state.colors,state.vars,'colors'); if (state.export !== undefined) validateMap(state.export,state.vars,'export colors'); }
@@ -341,9 +349,21 @@ async function saveToPi() {
   const result=await piRequest('/api/themes',{method:'POST',body:JSON.stringify({theme:JSON.parse(text)})});
   await refreshPiThemes(result.filename); toast('Theme saved in Pi: '+result.filename); return result.filename;
 }
+async function refreshPiSessions(selected = '') {
+  const data=await piRequest('/api/sessions'); const select=$('#piSessionSelect'); select.replaceChildren(make('option','', 'Pi sessions…'));
+  for (const session of data.sessions) { const option=make('option','',`${session.current ? '● ' : ''}${session.name}`); option.value=session.id; option.title=session.cwd || session.id; select.append(option); }
+  select.value=selected || select.value;
+}
+async function loadPiSession(id) {
+  if (!id) throw Error('Choose a Pi session'); const data=await piRequest('/api/session?id='+encodeURIComponent(id)); importSessionText(data.text,data.id);
+}
+async function saveSessionToPi() {
+  if (sessionState.kind!=='imported' || !sessionState.rawText) throw Error('Import or open a session first');
+  const result=await piRequest('/api/sessions/import',{method:'POST',body:JSON.stringify({text:sessionState.rawText})}); await refreshPiSessions(result.id); toast('Session copied to Pi: '+result.id);
+}
 async function enablePiBridge() {
   if (!piBridgeEnabled) return;
-  try { await piRequest('/api/config'); $('#piControls').hidden=false; await refreshPiThemes(); }
+  try { const config=await piRequest('/api/config'); $('#piControls').hidden=false; await refreshPiThemes(); if (config.sessionDir) { $('#piSessionControls').hidden=false; await refreshPiSessions(); } }
   catch (error) { console.warn('Pi bridge unavailable',error); }
 }
 
@@ -360,6 +380,11 @@ $('#refreshPiThemesBtn').onclick=async()=>{try { await refreshPiThemes($('#piThe
 $('#piThemeSelect').onchange=async event=>{ const filename=event.target.value; if (!filename) return; try { const data=await piRequest('/api/theme?filename='+encodeURIComponent(filename)); loadThemeObject(data.theme); toast('Theme loaded from Pi'); } catch (error) { toast('Could not load Pi theme: '+error.message); }};
 $('#saveToPiBtn').onclick=async()=>{try { await saveToPi(); } catch (error) { toast('Could not save to Pi: '+error.message); }};
 $('#activatePiThemeBtn').onclick=async()=>{try { const filename=await saveToPi(); if (!filename) return; await piRequest('/api/activate',{method:'POST',body:JSON.stringify({filename})}); toast('Theme activated in this Pi session'); } catch (error) { toast('Could not activate theme: '+error.message); }};
+$('#setDefaultPiThemeBtn').onclick=async()=>{try { const filename=await saveToPi(); if (!filename) return; await piRequest('/api/default-theme',{method:'POST',body:JSON.stringify({filename})}); toast('Theme saved as Pi default'); } catch (error) { toast('Could not set Pi default: '+error.message); }};
+$('#refreshPiSessionsBtn').onclick=async()=>{try { await refreshPiSessions($('#piSessionSelect').value); toast('Pi sessions refreshed'); } catch (error) { toast('Could not refresh Pi sessions: '+error.message); }};
+$('#viewPiSessionBtn').onclick=async()=>{try { await loadPiSession($('#piSessionSelect').value); } catch (error) { toast('Could not load Pi session: '+error.message); }};
+$('#piSessionSelect').onchange=async event=>{try { if (event.target.value) await loadPiSession(event.target.value); } catch (error) { toast('Could not load Pi session: '+error.message); }};
+$('#saveSessionToPiBtn').onclick=async()=>{try { await saveSessionToPi(); } catch (error) { toast('Could not import session to Pi: '+error.message); }};
 try { const saved=localStorage.getItem('pi-theme-draft'); if (saved) { const candidate=JSON.parse(saved); if (isPlainObject(candidate)&&isPlainObject(candidate.colors)&&isPlainObject(candidate.vars||{})) state=candidate; } } catch (_) { /* localStorage is optional */ }
 renderTabs(); $('#clearSessionBtn').disabled=true; showSessionNotice('Built-in demo active. Import is local and read-only; session contents are not persisted.'); render();
 enablePiBridge();

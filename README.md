@@ -16,7 +16,9 @@ Then start an interactive Pi session and run:
 /theme-builder
 ```
 
-Pi opens the editor in the default browser on a random `127.0.0.1` port. The integration controls can list themes, load one from Pi, save the current draft to Pi's real theme directory, and activate the newly saved theme in the current Pi session.
+Pi opens the editor in the default browser on a random `127.0.0.1` port. The integration controls can list themes, load one from Pi, save the current draft to Pi's real theme directory, activate the newly saved theme in the current Pi session, or persist it as Pi's startup default.
+
+The session controls list the real sessions found through Pi's active session directory. Select one to view it locally in the existing safe JSONL viewer. You can also import a validated JSONL into the current project's Pi session folder; use Pi's normal `/resume` flow to continue it.
 
 The extension respects `PI_CODING_AGENT_DIR`; otherwise it uses Pi's default `~/.pi/agent/themes` directory. Its browser API is limited to the loopback interface, uses a per-run secret token, accepts only safe theme filenames, and does not expose arbitrary filesystem access or command execution.
 
@@ -74,4 +76,4 @@ cp ./my-theme.json ~/.pi/agent/themes/
 
 Then select it in Pi settings or use `pi --theme ~/.pi/agent/themes/my-theme.json` as appropriate for your installed Pi version. Theme drafts are retained in localStorage in the browser; imported session contents are never stored there.
 
-When opened by `/theme-builder`, prefer **Save to Pi** and **Activate in Pi** over the download flow. Activation applies to the current running Pi session; select the theme in Pi settings if you also want to make it the startup default.
+When opened by `/theme-builder`, prefer **Save to Pi** and **Activate in Pi** over the download flow. **Set Pi default** writes the selected saved theme to Pi's global settings for future sessions.
