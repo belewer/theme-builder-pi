@@ -78,8 +78,24 @@ async function startServer() {
   await new Promise<void>((done, fail) => { server!.once("error", fail); server!.listen(0, "127.0.0.1", () => { server!.off("error", fail); done(); }); });
   const address = server.address(); if (!address || typeof address === "string") throw new Error("Could not determine Theme Builder port"); serverUrl = `http://127.0.0.1:${address.port}/?token=${token}`; return serverUrl;
 }
-function openBrowser(url: string) { const command = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open"; const args = process.platform === "win32" ? ["/c", "start", "", url] : [url]; const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true }); child.unref(); }
+async function tryOpen(command: string, args: string[]) {
+  return new Promise<boolean>(resolveOpen => {
+    const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+    child.once("error", () => resolveOpen(false));
+    child.once("spawn", () => { child.unref(); resolveOpen(true); });
+  });
+}
+async function openBrowser(url: string) {
+  if (process.platform === "win32") return tryOpen("cmd", ["/c", "start", "", url]);
+  if (process.platform === "darwin") return tryOpen("open", [url]);
+  // WSL installations often do not include xdg-open. cmd.exe is normally
+  // available there and opens the Windows default browser.
+  for (const [command, args] of [["xdg-open", [url]], ["gio", ["open", url]], ["wslview", [url]], ["cmd.exe", ["/c", "start", "", url]]] as [string, string[]][]) {
+    if (await tryOpen(command, args)) return true;
+  }
+  return false;
+}
 export default function (pi: ExtensionAPI) {
-  pi.registerCommand("theme-builder", { description: "Open the Pi Theme Builder in your browser", handler: async (_args, ctx) => { if (!ctx.hasUI) throw new Error("/theme-builder requires an interactive Pi session"); activeContext = ctx; openBrowser(await startServer()); ctx.ui.notify("Pi Theme Builder opened in your browser", "success"); } });
+  pi.registerCommand("theme-builder", { description: "Open the Pi Theme Builder in your browser", handler: async (_args, ctx) => { if (!ctx.hasUI) throw new Error("/theme-builder requires an interactive Pi session"); activeContext = ctx; const url = await startServer(); if (await openBrowser(url)) ctx.ui.notify("Pi Theme Builder opened in your browser", "success"); else ctx.ui.notify(`Could not launch a browser. Open this local URL manually: ${url}`, "warning"); } });
   pi.on("session_shutdown", async () => { if (server) await new Promise<void>(done => server!.close(() => done())); server = undefined; serverUrl = undefined; activeContext = undefined; });
 }
