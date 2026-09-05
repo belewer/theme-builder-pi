@@ -85,12 +85,20 @@ async function tryOpen(command: string, args: string[]) {
     child.once("spawn", () => { child.unref(); resolveOpen(true); });
   });
 }
+async function isWsl() {
+  if (process.env.WSL_INTEROP || process.env.WSL_DISTRO_NAME) return true;
+  try { return (await fs.readFile("/proc/version", "utf8")).toLowerCase().includes("microsoft"); }
+  catch { return false; }
+}
 async function openBrowser(url: string) {
   if (process.platform === "win32") return tryOpen("cmd", ["/c", "start", "", url]);
   if (process.platform === "darwin") return tryOpen("open", [url]);
-  // WSL installations often do not include xdg-open. cmd.exe is normally
-  // available there and opens the Windows default browser.
-  for (const [command, args] of [["xdg-open", [url]], ["gio", ["open", url]], ["wslview", [url]], ["cmd.exe", ["/c", "start", "", url]]] as [string, string[]][]) {
+  // In WSL, xdg-open can exist without a graphical desktop and return before
+  // opening anything. Prefer the Windows browser there.
+  const candidates: [string, string[]][] = await isWsl()
+    ? [["cmd.exe", ["/c", "start", "", url]], ["powershell.exe", ["-NoProfile", "-Command", "Start-Process", url]], ["wslview", [url]]]
+    : [["xdg-open", [url]], ["gio", ["open", url]]];
+  for (const [command, args] of candidates) {
     if (await tryOpen(command, args)) return true;
   }
   return false;
