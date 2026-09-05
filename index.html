@@ -11,6 +11,12 @@
     <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><h1>Pi Theme Builder</h1><p>Shape the colors of your terminal companion.</p></div></div>
     <div class="actions">
       <button id="importBtn" type="button">Import theme JSON</button>
+      <span id="piControls" class="pi-controls" hidden>
+        <select id="piThemeSelect" aria-label="Themes saved in Pi"><option value="">Pi themes…</option></select>
+        <button id="refreshPiThemesBtn" type="button">Refresh Pi themes</button>
+        <button id="saveToPiBtn" type="button">Save to Pi</button>
+        <button id="activatePiThemeBtn" type="button">Activate in Pi</button>
+      </span>
       <button id="importSessionBtn" type="button">Import Pi session JSONL</button>
       <button id="undoBtn" type="button">Undo</button>
       <button id="resetBtn" type="button">Reset theme</button>

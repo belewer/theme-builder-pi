@@ -315,8 +315,40 @@ function output() {
 }
 async function exportTheme() { const text=output(); if (!text) return; const file=(state.name||'my-theme').replace(/[^a-z0-9_-]/gi,'-')+'.json'; try { if (window.showSaveFilePicker) { const handle=await window.showSaveFilePicker({suggestedName:file,types:[{description:'Pi theme JSON',accept:{'application/json':['.json']}}]}); const writer=await handle.createWritable(); await writer.write(text); await writer.close(); } else { const link=document.createElement('a'); link.href=URL.createObjectURL(new Blob([text],{type:'application/json'})); link.download=file; link.click(); setTimeout(()=>URL.revokeObjectURL(link.href),1000); } toast('Theme exported'); } catch (error) { if (error.name!=='AbortError') toast('Export cancelled or unavailable'); } }
 
+const piBridgeToken = new URLSearchParams(location.search).get('token');
+const piBridgeEnabled = location.hostname === '127.0.0.1' && Boolean(piBridgeToken);
+async function piRequest(path, options = {}) {
+  const response = await fetch(path, {...options,headers:{'X-Theme-Builder-Token':piBridgeToken,'Content-Type':'application/json',...(options.headers || {})}});
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(body.error || 'Pi request failed');
+  return body;
+}
+function loadThemeObject(object) {
+  if (!isPlainObject(object)) throw Error('Theme must be an object'); const vars=object.vars===undefined?{}:object.vars;
+  if (!isPlainObject(vars) || !isPlainObject(object.colors)) throw Error('colors and vars must be plain objects');
+  const required=allTokens.filter(token=>!optionalTokens.has(token)); const missing=required.filter(token=>!Object.prototype.hasOwnProperty.call(object.colors,token));
+  if (missing.length) throw Error('Missing required color tokens: '+missing.join(', ')); validateMap(object.colors,vars,'colors');
+  if (object.export!==undefined) { if (!isPlainObject(object.export)) throw Error('export must be a plain object'); validateMap(object.export,vars,'export colors'); }
+  snapshot(); state={name:typeof object.name==='string'&&object.name?object.name:'imported-theme',vars:{...vars},colors:{...object.colors},...(object.export?{export:{...object.export}}:{})}; render();
+}
+async function refreshPiThemes(selected = '') {
+  const data = await piRequest('/api/themes'); const select=$('#piThemeSelect'); select.replaceChildren(make('option','', 'Pi themes…'));
+  for (const filename of data.themes) { const option=make('option','',filename); option.value=filename; select.append(option); }
+  select.value=selected || select.value;
+}
+async function saveToPi() {
+  const text=output(); if (!text) return null;
+  const result=await piRequest('/api/themes',{method:'POST',body:JSON.stringify({theme:JSON.parse(text)})});
+  await refreshPiThemes(result.filename); toast('Theme saved in Pi: '+result.filename); return result.filename;
+}
+async function enablePiBridge() {
+  if (!piBridgeEnabled) return;
+  try { await piRequest('/api/config'); $('#piControls').hidden=false; await refreshPiThemes(); }
+  catch (error) { console.warn('Pi bridge unavailable',error); }
+}
+
 $('#importBtn').onclick=()=>$('#fileInput').click();
-$('#fileInput').onchange=async event=>{ const file=event.target.files[0]; try { const object=JSON.parse(await file.text()); if (!isPlainObject(object)) throw Error('Theme must be an object'); const vars=object.vars===undefined?{}:object.vars; if (!isPlainObject(vars) || !isPlainObject(object.colors)) throw Error('colors and vars must be plain objects'); const required=allTokens.filter(token=>!optionalTokens.has(token)); const missing=required.filter(token=>!Object.prototype.hasOwnProperty.call(object.colors,token)); if (missing.length) throw Error('Missing required color tokens: '+missing.join(', ')); validateMap(object.colors,vars,'colors'); if (object.export!==undefined) { if (!isPlainObject(object.export)) throw Error('export must be a plain object'); validateMap(object.export,vars,'export colors'); } snapshot(); state={name:typeof object.name==='string'&&object.name?object.name:'imported-theme',vars:{...vars},colors:{...object.colors},...(object.export?{export:{...object.export}}:{})}; render(); toast('Theme imported'); } catch (error) { toast('Could not import: '+error.message); } event.target.value=''; };
+$('#fileInput').onchange=async event=>{ const file=event.target.files[0]; try { loadThemeObject(JSON.parse(await file.text())); toast('Theme imported'); } catch (error) { toast('Could not import: '+error.message); } event.target.value=''; };
 $('#importSessionBtn').onclick=()=>$('#sessionInput').click();
 $('#sessionInput').onchange=event=>{ const file=event.target.files[0]; if (file) importSession(file); event.target.value=''; };
 $('#clearSessionBtn').onclick=clearImported; $('#demoBtn').onclick=()=>{resetDemo();toast('Built-in demo restored');};
@@ -324,6 +356,11 @@ $('#addVarBtn').onclick=()=>{ const name=prompt('Variable name','primary')?.trim
 $('#preset').onchange=event=>loadPreset(event.target.value); $('#search').oninput=renderTokens;
 $('#themeName').oninput=event=>{state.name=event.target.value||'my-theme';renderPreview();}; $('#themeName').onchange=event=>{snapshot();state.name=event.target.value||'my-theme';renderPreview();};
 $('#undoBtn').onclick=()=>{if(history.length){state=JSON.parse(history.pop());render();toast('Undid last change');}}; $('#resetBtn').onclick=()=>{if(confirm('Reset this draft to Dark?')) loadPreset('dark');}; $('#exportBtn').onclick=exportTheme;
+$('#refreshPiThemesBtn').onclick=async()=>{try { await refreshPiThemes($('#piThemeSelect').value); toast('Pi themes refreshed'); } catch (error) { toast('Could not refresh Pi themes: '+error.message); }};
+$('#piThemeSelect').onchange=async event=>{ const filename=event.target.value; if (!filename) return; try { const data=await piRequest('/api/theme?filename='+encodeURIComponent(filename)); loadThemeObject(data.theme); toast('Theme loaded from Pi'); } catch (error) { toast('Could not load Pi theme: '+error.message); }};
+$('#saveToPiBtn').onclick=async()=>{try { await saveToPi(); } catch (error) { toast('Could not save to Pi: '+error.message); }};
+$('#activatePiThemeBtn').onclick=async()=>{try { const filename=await saveToPi(); if (!filename) return; await piRequest('/api/activate',{method:'POST',body:JSON.stringify({filename})}); toast('Theme activated in this Pi session'); } catch (error) { toast('Could not activate theme: '+error.message); }};
 try { const saved=localStorage.getItem('pi-theme-draft'); if (saved) { const candidate=JSON.parse(saved); if (isPlainObject(candidate)&&isPlainObject(candidate.colors)&&isPlainObject(candidate.vars||{})) state=candidate; } } catch (_) { /* localStorage is optional */ }
 renderTabs(); $('#clearSessionBtn').disabled=true; showSessionNotice('Built-in demo active. Import is local and read-only; session contents are not persisted.'); render();
+enablePiBridge();
 setInterval(()=>{try { localStorage.setItem('pi-theme-draft',JSON.stringify(state)); } catch (_) {}},2000);

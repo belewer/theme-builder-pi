@@ -2,7 +2,25 @@
 
 A self-contained, vanilla HTML/CSS/JavaScript visual editor for Pi coding-agent themes. It runs entirely in the browser: no backend, dependencies, network calls, command execution, or remote image loading are used after the page loads.
 
-## Use
+## Use in Pi (recommended)
+
+This repository is a Pi package. Install it locally while developing:
+
+```bash
+pi install /absolute/path/to/theme-builder-pi
+```
+
+Then start an interactive Pi session and run:
+
+```text
+/theme-builder
+```
+
+Pi opens the editor in the default browser on a random `127.0.0.1` port. The integration controls can list themes, load one from Pi, save the current draft to Pi's real theme directory, and activate the newly saved theme in the current Pi session.
+
+The extension respects `PI_CODING_AGENT_DIR`; otherwise it uses Pi's default `~/.pi/agent/themes` directory. Its browser API is limited to the loopback interface, uses a per-run secret token, accepts only safe theme filenames, and does not expose arbitrary filesystem access or command execution.
+
+## Use as a standalone editor
 
 ```bash
 cd /home/belewer/apps/pi-theme-builder
@@ -55,3 +73,5 @@ cp ./my-theme.json ~/.pi/agent/themes/
 ```
 
 Then select it in Pi settings or use `pi --theme ~/.pi/agent/themes/my-theme.json` as appropriate for your installed Pi version. Theme drafts are retained in localStorage in the browser; imported session contents are never stored there.
+
+When opened by `/theme-builder`, prefer **Save to Pi** and **Activate in Pi** over the download flow. Activation applies to the current running Pi session; select the theme in Pi settings if you also want to make it the startup default.

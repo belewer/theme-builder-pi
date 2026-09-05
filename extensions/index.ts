@@ -1,0 +1,85 @@
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomBytes } from "node:crypto";
+import { promises as fs } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { spawn } from "node:child_process";
+
+const WEB_ROOT = resolve(dirname(__dirname));
+const MAX_THEME_BYTES = 1024 * 1024;
+const token = randomBytes(24).toString("hex");
+let server: ReturnType<typeof createServer> | undefined;
+let serverUrl: string | undefined;
+let activeContext: ExtensionContext | undefined;
+
+const agentDir = () => process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+const themesDir = () => join(agentDir(), "themes");
+function safeThemeFilename(value: unknown) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}\.json$/i.test(value)) throw new Error("Invalid theme filename");
+  return value;
+}
+function themePath(filename: string) {
+  const root = resolve(themesDir()), path = resolve(root, safeThemeFilename(filename));
+  if (!path.startsWith(root + "\\") && !path.startsWith(root + "/")) throw new Error("Invalid theme path");
+  return path;
+}
+function send(response: ServerResponse, status: number, value: unknown) {
+  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+  response.end(JSON.stringify(value));
+}
+function sendStatic(response: ServerResponse, status: number, type: string, body: string | Buffer) {
+  response.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'" });
+  response.end(body);
+}
+async function readJson(request: IncomingMessage) {
+  const chunks: Buffer[] = []; let size = 0;
+  for await (const chunk of request) { const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk); size += data.length; if (size > MAX_THEME_BYTES) throw new Error("Request exceeds 1 MB"); chunks.push(data); }
+  try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new Error("Invalid JSON"); }
+}
+function validTheme(value: unknown): value is { name?: string; colors: Record<string, unknown> } {
+  return !!value && typeof value === "object" && !Array.isArray(value) && !!(value as { colors?: unknown }).colors && typeof (value as { colors: unknown }).colors === "object" && !Array.isArray((value as { colors: unknown }).colors);
+}
+async function listThemes() {
+  try { return (await fs.readdir(themesDir(), { withFileTypes: true })).filter(item => item.isFile() && extname(item.name).toLowerCase() === ".json").map(item => item.name).sort((a, b) => a.localeCompare(b)); }
+  catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
+}
+async function serveStatic(pathname: string, response: ServerResponse) {
+  const files: Record<string, [string, string]> = { "/": ["index.html", "text/html; charset=utf-8"], "/index.html": ["index.html", "text/html; charset=utf-8"], "/app.js": ["app.js", "application/javascript; charset=utf-8"], "/style.css": ["style.css", "text/css; charset=utf-8"] };
+  const file = files[pathname];
+  if (!file) return sendStatic(response, 404, "text/plain; charset=utf-8", "Not found");
+  try { sendStatic(response, 200, file[1], await fs.readFile(join(WEB_ROOT, file[0]))); } catch { sendStatic(response, 500, "text/plain; charset=utf-8", "Theme Builder assets are unavailable"); }
+}
+async function handleApi(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (request.headers["x-theme-builder-token"] !== token) return send(response, 401, { error: "Unauthorized" });
+  try {
+    if (request.method === "GET" && url.pathname === "/api/config") return send(response, 200, { agentDir: agentDir(), themesDir: themesDir(), activeSession: activeContext?.sessionManager.getSessionFile() ?? null });
+    if (request.method === "GET" && url.pathname === "/api/themes") return send(response, 200, { themes: await listThemes() });
+    if (request.method === "GET" && url.pathname === "/api/theme") { const filename = safeThemeFilename(url.searchParams.get("filename")); const text = await fs.readFile(themePath(filename), "utf8"); if (Buffer.byteLength(text) > MAX_THEME_BYTES) throw new Error("Theme exceeds 1 MB"); return send(response, 200, { filename, theme: JSON.parse(text) }); }
+    if (request.method === "POST" && url.pathname === "/api/themes") {
+      const body = await readJson(request); const theme = (body as { theme?: unknown })?.theme;
+      if (!validTheme(theme)) throw new Error("A Pi theme with colors is required");
+      const requested = (body as { filename?: unknown }).filename;
+      const stem = (typeof requested === "string" ? requested : theme.name || "my-theme").replace(/\.json$/i, "").replace(/[^a-z0-9_-]/gi, "-").replace(/^-+|-+$/g, "").slice(0, 128) || "my-theme";
+      const filename = safeThemeFilename(`${stem}.json`); await fs.mkdir(themesDir(), { recursive: true });
+      const temporary = join(themesDir(), `.${filename}.${randomBytes(6).toString("hex")}.tmp`); await fs.writeFile(temporary, JSON.stringify(theme, null, 2) + "\n", { encoding: "utf8", mode: 0o600 }); await fs.rename(temporary, themePath(filename)); return send(response, 201, { filename });
+    }
+    if (request.method === "POST" && url.pathname === "/api/activate") {
+      const filename = safeThemeFilename((await readJson(request) as { filename?: unknown }).filename); await fs.access(themePath(filename));
+      if (!activeContext) throw new Error("Run /theme-builder from an interactive Pi session first");
+      const result = activeContext.ui.setTheme(basename(filename, ".json")); if (!result.success) throw new Error(result.error || "Pi could not activate this theme"); return send(response, 200, { filename });
+    }
+    return send(response, 404, { error: "Not found" });
+  } catch (error: unknown) { return send(response, (error as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 400, { error: error instanceof Error ? error.message : "Request failed" }); }
+}
+async function startServer() {
+  if (serverUrl) return serverUrl;
+  server = createServer(async (request, response) => { const url = new URL(request.url || "/", "http://127.0.0.1"); if (url.pathname.startsWith("/api/")) await handleApi(request, response, url); else await serveStatic(url.pathname, response); });
+  await new Promise<void>((done, fail) => { server!.once("error", fail); server!.listen(0, "127.0.0.1", () => { server!.off("error", fail); done(); }); });
+  const address = server.address(); if (!address || typeof address === "string") throw new Error("Could not determine Theme Builder port"); serverUrl = `http://127.0.0.1:${address.port}/?token=${token}`; return serverUrl;
+}
+function openBrowser(url: string) { const command = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open"; const args = process.platform === "win32" ? ["/c", "start", "", url] : [url]; const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true }); child.unref(); }
+export default function (pi: ExtensionAPI) {
+  pi.registerCommand("theme-builder", { description: "Open the Pi Theme Builder in your browser", handler: async (_args, ctx) => { if (!ctx.hasUI) throw new Error("/theme-builder requires an interactive Pi session"); activeContext = ctx; openBrowser(await startServer()); ctx.ui.notify("Pi Theme Builder opened in your browser", "success"); } });
+  pi.on("session_shutdown", async () => { if (server) await new Promise<void>(done => server!.close(() => done())); server = undefined; serverUrl = undefined; activeContext = undefined; });
+}
