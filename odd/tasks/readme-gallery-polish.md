@@ -25,7 +25,13 @@ Present Pi Theme Builder as a design-led Pi package, clearly communicating the e
   - Highlighted the 56-token editor, five preview modes, click-to-focus, variables, xterm fidelity, undo/reset, and import/export.
   - Explained real Pi theme actions and the bounded, local/read-only session viewer/import workflow.
   - Preserved accurate npm/Git/local installation, security, session CLI, standalone, and contributor guidance.
-  - Evidence: `npm run check`, `npm run typecheck`, `npm run test:package`, and `npm pack --dry-run` passed; independent verification and targeted Markdown/CLI recheck passed. Commit: this README redesign work-unit commit.
+  - Evidence: `npm run check`, `npm run typecheck`, `npm run test:package`, and `npm pack --dry-run` passed; independent verification and targeted Markdown/CLI recheck passed. Commit: `8cb5545`.
+
+- [x] **Add animated gallery preview**
+  - Converted the supplied GIF to a 263 KB browser-compatible H.264/yuv420p MP4 with faststart, no audio, and preserved timing.
+  - Configured `pi.video` while retaining `pi.image` as the static fallback.
+  - Independently verified the codec, 1200×630 dimensions, 7.117-second duration, 20 frames, media size, metadata URLs, and tarball exclusion.
+  - Evidence: media probes and `npm pack --dry-run` passed. Commit: this animated-preview work-unit commit.
 
 ## Acceptance criteria
 
