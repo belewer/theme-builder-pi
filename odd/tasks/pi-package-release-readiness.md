@@ -17,13 +17,13 @@ Prepare `pi-theme-builder` for a reliable public npm release and discovery in th
   - Replaced the deprecated Pi package scope.
   - Added publish-safe package contents, Node engine metadata, and MIT license.
   - Refreshed the lockfile and verified the packed artifact contents.
-  - Evidence: `npm run check`, `npm pack --dry-run`, `npm ci --dry-run`; independent verification passed. Commit: pending.
+  - Evidence: `npm run check`, `npm pack --dry-run`, `npm ci --dry-run`; independent verification passed. Commit: `5835013`.
 
-- [ ] **Quality gates and CI**
-  - Add TypeScript validation for the extension.
-  - Add package validation and an install/load smoke test where practical.
-  - Keep existing browser checks and end-to-end tests passing.
-  - Evidence: pending.
+- [x] **Quality gates and CI**
+  - Added strict TypeScript validation for the extension.
+  - Added tarball validation and a clean install/load smoke test through Pi's real extension loader.
+  - Retained browser syntax checks and the Playwright CI job.
+  - Evidence: `npm run check`, `npm run typecheck`, and `npm run test:package` passed; independent verification passed. Local e2e execution remains environment-skipped because the host lacks Chromium system library `libnspr4.so`. Commit: pending.
 
 - [ ] **Release-facing documentation and gallery presentation**
   - Remove machine-specific instructions.

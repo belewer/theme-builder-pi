@@ -8,8 +8,10 @@
   },
   "scripts": {
     "check": "node --check app.js",
+    "typecheck": "tsc --noEmit",
     "serve": "node scripts/serve.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:package": "node scripts/package-smoke.mjs"
   },
   "keywords": [
     "pi-package",
@@ -31,6 +33,8 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
+    "typescript": "^5.9.3"
   }
 }
