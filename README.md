@@ -65,6 +65,29 @@ pi --fork /path/to/session.jsonl
 
 The builder can inspect a JSONL file locally, but it cannot resume it. Use Pi itself for `/import`, `/export`, `--session`, `-c`, `-r`, and `--fork` behavior.
 
+## Development and testing
+
+Install the locked dependencies:
+
+```bash
+npm ci
+```
+
+Playwright's headless Chromium requires system libraries. On a Linux host, install the browser and its system dependencies together:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+Run the syntax check and the end-to-end suite:
+
+```bash
+npm run check
+npm run test:e2e
+```
+
+`npm run test:e2e` starts the editor on `127.0.0.1` and exercises startup, presets, token editing, search, variables, import/export, undo/reset, and preview tabs. The same commands run in GitHub Actions on every push and pull request.
+
 ## Theme export
 
 Use **Export theme** to choose a filename and destination with the browser's save dialog (File System Access API), or download the JSON in browsers that do not support that API. Install the resulting file globally with:
