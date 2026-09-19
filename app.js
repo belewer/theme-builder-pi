@@ -26,7 +26,7 @@ let state = {name:'my-theme',vars:{},colors:{...dark},export:{pageBg:'#080b12',c
 let history = [];
 let activeMode = 'session';
 let sessionState = {kind:'demo', name:'Built-in comprehensive demo', records:[]};
-const limits = {bytes:5 * 1024 * 1024, records:2000, field:12000, output:16000};
+const limits = {bytes:5 * 1024 * 1024, records:20000, record:1024 * 1024, output:16000};
 
 function isPlainObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function isHex(value) { return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value); }
@@ -184,31 +184,190 @@ function renderImportedRecords(parent, records) {
 }
 function bounded(value, max = limits.output) { const text = typeof value === 'string' ? value : JSON.stringify(value); if (!text) return ''; return text.length > max ? text.slice(0,max) + ' … [truncated]' : text; }
 function recordText(record) {
+  // Loose-shape fallback for non-message entries; message cards use the block-aware renderers below.
   const message = isPlainObject(record.message) ? record.message : record;
   const content = message.content ?? message.text ?? message.output ?? message.result ?? '';
   if (Array.isArray(content)) return content.map(part => isPlainObject(part) ? (part.text ?? part.content ?? part.thinking ?? (part.type === 'toolCall' ? `[tool call: ${part.name || part.toolName || 'tool'}]` : '') ?? '') : part).join('');
   return typeof content === 'string' ? content : bounded(content);
 }
-function recordToolCall(message) {
-  if (message.toolCall || message.tool_calls) return message.toolCall || message.tool_calls;
-  if (Array.isArray(message.content)) return message.content.filter(part => isPlainObject(part) && (part.type === 'toolCall' || part.type === 'tool_use'));
-  return null;
+function contentBlocks(message) {
+  const content = message.content;
+  if (Array.isArray(content)) return content;
+  if (typeof content === 'string' && content !== '') return [{type:'text',text:content}];
+  if (content === undefined || content === null) {
+    const loose = message.text ?? message.output ?? message.result;
+    if (Array.isArray(loose)) return loose;
+    if (typeof loose === 'string' && loose !== '') return [{type:'text',text:loose}];
+    return [];
+  }
+  return [{type:'text',text:bounded(content)}];
+}
+function blockText(block) { return typeof block.text === 'string' ? block.text : (block.text === undefined || block.text === null ? '' : bounded(block.text)); }
+function toolArgSummary(call) {
+  const name = call.name || call.toolName || call.tool || 'tool';
+  const args = call.arguments ?? call.args ?? call.input ?? call.params;
+  if (args === undefined || args === null || args === '') return '▸ ' + name;
+  if (isPlainObject(args)) {
+    if (typeof args.path === 'string') return '▸ ' + name + ' ' + args.path;
+    if (typeof args.command === 'string') return '▸ ' + name + ' ' + args.command;
+    if (typeof args.agent === 'string') return '▸ ' + name + ' ' + args.agent;
+    if (typeof args.action === 'string') return '▸ ' + name + ' ' + args.action;
+    if (typeof args.pattern === 'string' || typeof args.query === 'string') return '▸ ' + name + ' ' + (args.pattern || args.query);
+  }
+  return '▸ ' + name + ' ' + bounded(args, 200);
+}
+function renderImageBlock(container, block) {
+  const data = block.data ?? block.image ?? block.source?.data ?? '';
+  if (typeof data !== 'string' || !data) return;
+  if (data.length > 2000000) { container.append(make('div','record-image-omitted','[image omitted]')); return; }
+  const img = make('img','record-image'); img.alt = 'tool image'; img.src = 'data:image/png;base64,' + data; container.append(img);
+}
+function thinkingSnippet(text) { const node = make('div','thinking-snippet', bounded(text)); node.dataset.focus = 'thinkingText'; return node; }
+function renderUserCard(parent, message, blocks) {
+  const card = make('div','record-card user'); card.dataset.focus = 'userMessageBg';
+  card.append(make('div','record-label','user'));
+  const parts = [];
+  for (const block of blocks) {
+    if (typeof block === 'string') { if (block) parts.push(block); continue; }
+    if (!isPlainObject(block)) continue;
+    if (block.type === 'text') { const t = blockText(block); if (t) parts.push(t); }
+  }
+  if (parts.length) card.append(make('div','record-content', parts.join('\n\n')));
+  parent.append(card);
+}
+function renderAssistantCard(parent, message, blocks) {
+  const card = make('div','record-card assistant'); card.dataset.focus = 'text';
+  card.append(make('div','record-label','assistant'));
+  const body = make('div','record-body');
+  let sawThinking = false;
+  for (const block of blocks) {
+    if (!isPlainObject(block)) continue;
+    const kind = block.type;
+    if (kind === 'text') { const t = blockText(block); if (t) body.append(renderMarkdown(t)); }
+    else if (kind === 'thinking') { const t = typeof block.thinking === 'string' ? block.thinking : (block.text ?? ''); body.append(thinkingSnippet(t)); sawThinking = true; }
+    else if (kind === 'toolCall' || kind === 'tool_use') { const tool = make('div','record-tool', toolArgSummary(block)); tool.dataset.focus = 'toolTitle'; body.append(tool); }
+    else if (kind === 'image') renderImageBlock(body, block);
+  }
+  if (!sawThinking && message.thinking) body.append(thinkingSnippet(message.thinking));
+  card.append(body);
+  parent.append(card);
+}
+function renderToolResultCard(parent, message, blocks) {
+  const card = make('div','record-card tool-success'); card.dataset.focus = 'toolSuccessBg';
+  card.append(make('div','record-label','tool result'));
+  const body = make('div','record-body');
+  for (const block of blocks) {
+    if (typeof block === 'string') { if (block) body.append(make('div','record-content', bounded(block))); continue; }
+    if (!isPlainObject(block)) continue;
+    if (block.type === 'text') { const t = blockText(block); if (t) body.append(make('div','record-output', bounded(t))); }
+    else if (block.type === 'image') renderImageBlock(body, block);
+  }
+  if (!blocks.length) { const loose = message.text ?? message.output ?? message.result ?? ''; if (loose) body.append(make('div','record-output', bounded(loose))); }
+  card.append(body);
+  parent.append(card);
+}
+const CUSTOM_SUMMARIES = {
+  'gentle-pi.session-change/v1': data => 'session change · ' + (data && data.evidence && typeof data.evidence.path === 'string' ? data.evidence.path : 'internal'),
+  'gentle-pi.session-worktree/v1': data => 'worktree ' + ((data && data.root) || ''),
+  'gentle-pi.review-reminder-receipt/v1': data => 'review reminder · ' + ((data && data.toolName) || 'internal'),
+  'gentle-pi.session-switch/v1': () => 'session switch',
+  'zentui-turn-summary': () => 'turn summary'
+};
+function renderCustomContent(card, record, message) {
+  const customType = record.customType ?? message.customType ?? record.custom?.type ?? '';
+  const data = record.data ?? message.data ?? record.custom?.data;
+  const text = record.content ?? message.content ?? record.text ?? message.text ?? '';
+  const summary = CUSTOM_SUMMARIES[customType];
+  if (summary) { card.append(make('div','record-content muted-content', summary(data))); return; }
+  const box = make('div','record-content');
+  if (customType) box.append(make('strong','', String(customType)));
+  const detail = data !== undefined && data !== null ? bounded(data, 400) : (typeof text === 'string' && text ? bounded(text, 400) : bounded(record, 400));
+  box.append(document.createTextNode(customType ? ' ' : ''), make('span','', detail));
+  card.append(box);
 }
 function renderRecord(parent, record) {
-  const message = isPlainObject(record.message) ? record.message : record; const role = String(message.role || '');
+  const message = isPlainObject(record.message) ? record.message : record;
+  const role = String(message.role || '');
   const type = String(record.type || role || 'unknown');
-  if ((type === 'message' || type === 'user' || type === 'assistant') && (role === 'user' || role === 'assistant' || type === 'user' || type === 'assistant')) {
-    const card = make('div','record-card '+role); card.dataset.focus = role === 'user' ? 'userMessageBg' : 'text'; card.append(make('div','record-label',role));
-    const content = recordText(record); card.append(make('div','record-content',bounded(content)));
-    if (role === 'assistant' && (message.thinking || (Array.isArray(message.content) && message.content.some(x=>isPlainObject(x)&&x.type==='thinking')))) card.append(make('div','thinking-snippet',bounded(message.thinking || 'thinking…')));
-    const toolCall = recordToolCall(message); if (toolCall) card.append(make('div','record-tool',bounded(toolCall)));
-    parent.append(card); return;
-  }
-  const map = {toolResult:['tool-success','tool result'],tool:['tool-success','tool result'],bashExecution:['bash-record','bash execution'],custom:['custom-message','custom'],custom_message:['custom-message','custom message'],compaction:['record-muted','compaction'],branch_summary:['record-muted','branch summary'],model_change:['record-info','model change'],thinking_level_change:['record-info','thinking level'],label:['record-info','label'],session_info:['record-info','session info'],session:['record-info','session info']};
+  const blocks = contentBlocks(message);
+  if (role === 'user' || type === 'user') { renderUserCard(parent, message, blocks); return; }
+  if (role === 'assistant' || type === 'assistant') { renderAssistantCard(parent, message, blocks); return; }
+  if (role === 'toolResult' || type === 'toolResult' || type === 'tool') { renderToolResultCard(parent, message, blocks); return; }
+  const map = {bashExecution:['bash-record','bash execution'],custom:['custom-message','custom'],custom_message:['custom-message','custom message'],compaction:['record-muted','compaction'],branch_summary:['record-muted','branch summary'],model_change:['record-info','model change'],thinking_level_change:['record-info','thinking level'],label:['record-info','label'],session_info:['record-info','session info'],session:['record-info','session info']};
   const recordType = type === 'message' && role ? role : type;
   const config = map[recordType];
-  if (config) { const card = make('div','record-card '+config[0]); card.dataset.focus = recordType === 'toolResult' || recordType === 'tool' ? 'toolSuccessBg' : recordType === 'bashExecution' ? 'bashMode' : recordType === 'custom' || recordType === 'custom_message' ? 'customMessageBg' : 'muted'; card.append(make('div','record-label',config[1]),make('div','record-content',bounded(recordText(record) || record.summary || record.output || record.command || record.message || record.model || record.level || record.label || '—'))); parent.append(card); return; }
-  const generic = make('div','record-card generic-record'); generic.append(make('div','record-label','unknown record'),make('div','record-content',bounded(JSON.stringify(record)))); parent.append(generic);
+  if (config) {
+    const card = make('div','record-card '+config[0]);
+    card.dataset.focus = recordType === 'bashExecution' ? 'bashMode' : recordType === 'custom' || recordType === 'custom_message' ? 'customMessageBg' : 'muted';
+    card.append(make('div','record-label', config[1]));
+    if (recordType === 'custom' || recordType === 'custom_message') renderCustomContent(card, record, message);
+    else card.append(make('div','record-content', bounded(recordText(record) || record.summary || record.output || record.command || record.model || record.level || record.label || '—')));
+    parent.append(card); return;
+  }
+  const generic = make('div','record-card generic-record'); generic.append(make('div','record-label','unknown record'), make('div','record-content', bounded(JSON.stringify(record)))); parent.append(generic);
+}
+function mdNode(token, tag, className, text) { const node = make(tag || 'span', className || '', text); if (token) node.dataset.focus = token; return node; }
+function appendInline(parent, text) {
+  const pattern = /(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(`[^`]+`)|(\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\))/g;
+  let last = 0, m;
+  while ((m = pattern.exec(text))) {
+    if (m.index > last) parent.append(document.createTextNode(text.slice(last, m.index)));
+    if (m[1]) parent.append(make('strong','', m[1].slice(2, -2)));
+    else if (m[2]) parent.append(make('em','', m[2].slice(1, -1)));
+    else if (m[3]) parent.append(mdNode('mdCode','code','code', m[3].slice(1, -1)));
+    else if (m[4]) { const a = mdNode('mdLink','a','link', m[5]); a.href = m[6]; a.target = '_blank'; a.rel = 'noopener noreferrer'; parent.append(a); }
+    last = pattern.lastIndex;
+  }
+  if (last < text.length) parent.append(document.createTextNode(text.slice(last)));
+}
+function mdHeadingNode(level, text) {
+  const node = mdNode('mdHeading','div','heading');
+  node.style.fontSize = ({1:'17px',2:'16px',3:'14px',4:'13px',5:'12px',6:'12px'})[level] || '13px';
+  appendInline(node, text);
+  return node;
+}
+function mdCodeBlockNode(lang, lines) {
+  const pre = make('pre','code-block');
+  pre.append(mdNode('mdCodeBlockBorder','span','code-fence', (lang ? '``` ' + lang : '```') + '\n'));
+  pre.append(mdNode('mdCodeBlock','span','code-block-text', lines.join('\n')));
+  pre.append(mdNode('mdCodeBlockBorder','span','code-fence', '\n```'));
+  return pre;
+}
+function renderMarkdown(text) {
+  const root = make('div','markdown-body');
+  const lines = String(text ?? '').split('\n');
+  let code = null, listEl = null, listType = null, quoteEl = null, paraEl = null;
+  const flushList = () => { if (listEl) { root.append(listEl); listEl = null; listType = null; } };
+  const flushQuote = () => { if (quoteEl) { root.append(quoteEl); quoteEl = null; } };
+  const flushPara = () => { if (paraEl) { root.append(paraEl); paraEl = null; } };
+  const flushAll = () => { flushPara(); flushQuote(); flushList(); };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, '');
+    if (code) {
+      if (/^\s*(```|~~~)\s*$/.test(line)) { root.append(mdCodeBlockNode(code.lang, code.lines)); code = null; }
+      else code.lines.push(line);
+      continue;
+    }
+    const openFence = line.trim().match(/^(```|~~~)(.*)$/);
+    if (openFence) { flushAll(); code = { lang: openFence[2].trim(), lines: [] }; continue; }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) { flushAll(); root.append(mdHeadingNode(heading[1].length, heading[2])); continue; }
+    if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(line)) { flushAll(); root.append(mdNode('mdHr','div','hr','────────────────────────────────────────')); continue; }
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) { flushPara(); flushList(); if (!quoteEl) quoteEl = mdNode('mdQuote','blockquote','quote'); appendInline(quoteEl, quote[1]); quoteEl.append(make('br')); continue; }
+    const ul = line.match(/^\s*[-*]\s+(.*)$/);
+    if (ul) { flushPara(); flushQuote(); if (!listEl || listType !== 'ul') { flushList(); listEl = mdNode('mdListBullet','ul','markdown-list'); listType = 'ul'; } const li = make('li'); li.append(mdNode('mdListBullet','span','bullet','•'), document.createTextNode(' ')); appendInline(li, ul[1]); listEl.append(li); continue; }
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ol) { flushPara(); flushQuote(); if (!listEl || listType !== 'ol') { flushList(); listEl = make('ol','markdown-list'); listType = 'ol'; } const li = make('li'); appendInline(li, ol[1]); listEl.append(li); continue; }
+    if (!line.trim()) { flushAll(); continue; }
+    flushList(); flushQuote();
+    if (!paraEl) paraEl = make('p','md-para');
+    if (paraEl.childNodes.length) paraEl.append(make('br'));
+    appendInline(paraEl, line);
+  }
+  if (code) root.append(mdCodeBlockNode(code.lang, code.lines));
+  flushAll();
+  return root;
 }
 
 function buildStates(parent) {
@@ -276,7 +435,7 @@ function clearImported() { resetDemo(); toast('Imported session cleared'); }
 function parseSessionText(text) {
   if (typeof text !== 'string' || new Blob([text]).size > limits.bytes) throw Error('File exceeds the 5 MB safety limit');
   const lines=text.split(/\r?\n/); const records=[];
-    for (let i=0;i<lines.length;i++) { const line=lines[i]; if (!line.trim()) continue; if (line.length > limits.field * 2) throw Error(`Line ${i+1} exceeds the safety limit`); let item; try { item=JSON.parse(line); } catch (error) { throw Error(`Malformed JSONL at line ${i+1}`); } if (!isPlainObject(item)) throw Error(`Line ${i+1} is not a JSON object`); const encoded=JSON.stringify(item); if (encoded.length > limits.field * 4) throw Error(`Record ${records.length + 1} is too large`); validateSessionFields(item,`record ${records.length + 1}`); records.push(item); if (records.length > limits.records) throw Error(`Session exceeds ${limits.records} records`); }
+    for (let i=0;i<lines.length;i++) { const line=lines[i]; if (!line.trim()) continue; if (line.length > limits.record) throw Error(`Line ${i+1} exceeds the safety limit`); let item; try { item=JSON.parse(line); } catch (error) { throw Error(`Malformed JSONL at line ${i+1}`); } if (!isPlainObject(item)) throw Error(`Line ${i+1} is not a JSON object`); const encoded=JSON.stringify(item); if (encoded.length > limits.record) throw Error(`Record ${records.length + 1} is too large`); validateSessionFields(item,`record ${records.length + 1}`); records.push(item); if (records.length > limits.records) throw Error(`Session exceeds ${limits.records} records`); }
   validateSessionLinks(records); return records;
 }
 function parseSessionFile(file) {
@@ -285,7 +444,6 @@ function parseSessionFile(file) {
 }
 function validateSessionFields(value, path, depth = 0) {
   if (depth > 20) throw Error(`${path} is nested too deeply`);
-  if (typeof value === 'string' && value.length > limits.field) throw Error(`${path} field exceeds ${limits.field} characters`);
   if (Array.isArray(value)) { for (let i=0;i<value.length;i++) validateSessionFields(value[i],`${path}[${i}]`,depth+1); return; }
   if (isPlainObject(value)) for (const [key,child] of Object.entries(value)) validateSessionFields(child,`${path}.${key}`,depth+1);
 }
@@ -349,13 +507,32 @@ async function saveToPi() {
   const result=await piRequest('/api/themes',{method:'POST',body:JSON.stringify({theme:JSON.parse(text)})});
   await refreshPiThemes(result.filename); toast('Theme saved in Pi: '+result.filename); return result.filename;
 }
+function formatSessionDate(value) {
+  const date=new Date(value); if (Number.isNaN(date.getTime())) return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${pad(date.getDate())}/${pad(date.getMonth()+1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function sessionLabel(session) {
+  const date=formatSessionDate(session.timestamp || session.modified);
+  const title=session.title || (session.cwd ? session.cwd.replace(/\\/g,'/').split('/').filter(Boolean).pop() : '') || session.name;
+  return date ? `${date} · ${title}` : title;
+}
 async function refreshPiSessions(selected = '') {
   const data=await piRequest('/api/sessions'); const select=$('#piSessionSelect'); select.replaceChildren(make('option','', 'Pi sessions…'));
-  for (const session of data.sessions) { const option=make('option','',`${session.current ? '● ' : ''}${session.name}`); option.value=session.id; option.title=session.cwd || session.id; select.append(option); }
+  for (const session of data.sessions) {
+    const option=make('option','',`${session.current ? '● ' : ''}${sessionLabel(session)}${session.tooLarge ? ' · too large to open' : ''}`);
+    option.value=session.id;
+    option.title=session.tooLarge ? `${session.name} exceeds 5 MB and cannot be opened` : `${sessionLabel(session)}\n${session.cwd || session.id}`;
+    if (session.tooLarge) option.dataset.tooLarge='true';
+    select.append(option);
+  }
   select.value=selected || select.value;
 }
 async function loadPiSession(id) {
-  if (!id) throw Error('Choose a Pi session'); const data=await piRequest('/api/session?id='+encodeURIComponent(id)); importSessionText(data.text,data.id);
+  if (!id) throw Error('Choose a Pi session');
+  const flagged=[...$('#piSessionSelect').options].some(option=>option.value===id && option.dataset.tooLarge);
+  if (flagged) throw Error('This session exceeds 5 MB and cannot be opened');
+  const data=await piRequest('/api/session?id='+encodeURIComponent(id)); importSessionText(data.text,data.id);
 }
 async function saveSessionToPi() {
   if (sessionState.kind!=='imported' || !sessionState.rawText) throw Error('Import or open a session first');
@@ -363,8 +540,19 @@ async function saveSessionToPi() {
 }
 async function enablePiBridge() {
   if (!piBridgeEnabled) return;
-  try { const config=await piRequest('/api/config'); $('#piControls').hidden=false; await refreshPiThemes(); if (config.sessionDir) { $('#piSessionControls').hidden=false; await refreshPiSessions(); } }
+  try { const config=await piRequest('/api/config'); $('#piThemesDropdown').hidden=false; await refreshPiThemes(); if (config.sessionDir) { $('#piSessionsDropdown').hidden=false; await refreshPiSessions(); } }
   catch (error) { console.warn('Pi bridge unavailable',error); }
+}
+function setupDropdowns() {
+  const dropdowns=$$('.dropdown');
+  const closeAll=except=>dropdowns.forEach(d=>{ if(d!==except){ d.classList.remove('open'); const t=d.querySelector('.dropdown-toggle'); t?.setAttribute('aria-expanded','false'); } });
+  dropdowns.forEach(d=>{
+    const toggle=d.querySelector('.dropdown-toggle');
+    toggle.addEventListener('click',e=>{ e.stopPropagation(); const willOpen=!d.classList.contains('open'); closeAll(d); d.classList.toggle('open',willOpen); toggle.setAttribute('aria-expanded',String(willOpen)); });
+    d.addEventListener('click',e=>{ e.stopPropagation(); if(e.target.closest('.dropdown-menu button')){ d.classList.remove('open'); toggle.setAttribute('aria-expanded','false'); } });
+  });
+  document.addEventListener('click',()=>closeAll());
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAll(); });
 }
 
 $('#importBtn').onclick=()=>$('#fileInput').click();
@@ -387,5 +575,6 @@ $('#piSessionSelect').onchange=async event=>{try { if (event.target.value) await
 $('#saveSessionToPiBtn').onclick=async()=>{try { await saveSessionToPi(); } catch (error) { toast('Could not import session to Pi: '+error.message); }};
 try { const saved=localStorage.getItem('pi-theme-draft'); if (saved) { const candidate=JSON.parse(saved); if (isPlainObject(candidate)&&isPlainObject(candidate.colors)&&isPlainObject(candidate.vars||{})) state=candidate; } } catch (_) { /* localStorage is optional */ }
 renderTabs(); $('#clearSessionBtn').disabled=true; showSessionNotice('Built-in demo active. Import is local and read-only; session contents are not persisted.'); render();
+setupDropdowns();
 enablePiBridge();
 setInterval(()=>{try { localStorage.setItem('pi-theme-draft',JSON.stringify(state)); } catch (_) {}},2000);
