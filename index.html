@@ -10,24 +10,40 @@
   <header>
     <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><h1>Pi Theme Builder</h1><p>Shape the colors of your terminal companion.</p></div></div>
     <div class="actions">
-      <button id="importBtn" type="button">Import theme JSON</button>
-      <span id="piControls" class="pi-controls" hidden>
-        <select id="piThemeSelect" aria-label="Themes saved in Pi"><option value="">Pi themes…</option></select>
-        <button id="refreshPiThemesBtn" type="button">Refresh Pi themes</button>
-        <button id="saveToPiBtn" type="button">Save to Pi</button>
-        <button id="activatePiThemeBtn" type="button">Activate in Pi</button>
-        <button id="setDefaultPiThemeBtn" type="button">Set Pi default</button>
-      </span>
-      <span id="piSessionControls" class="pi-controls" hidden>
-        <select id="piSessionSelect" aria-label="Pi sessions"><option value="">Pi sessions…</option></select>
-        <button id="refreshPiSessionsBtn" type="button">Refresh sessions</button>
-        <button id="viewPiSessionBtn" type="button">View session</button>
-        <button id="saveSessionToPiBtn" type="button">Import session to Pi</button>
-      </span>
-      <button id="importSessionBtn" type="button">Import Pi session JSONL</button>
-      <button id="undoBtn" type="button">Undo</button>
-      <button id="resetBtn" type="button">Reset theme</button>
-      <button class="primary" id="exportBtn" type="button">Export theme</button>
+      <div class="action-group">
+        <button id="importBtn" type="button" class="ghost" title="Import a theme JSON file">Import theme</button>
+        <button id="importSessionBtn" type="button" class="ghost" title="Import a Pi session JSONL file">Import session</button>
+      </div>
+      <div class="action-group">
+        <button id="undoBtn" type="button" class="ghost" title="Undo the last change">Undo</button>
+        <button id="resetBtn" type="button" class="ghost" title="Reset this draft to the Dark preset">Reset theme</button>
+      </div>
+      <div class="action-group">
+        <button class="primary" id="exportBtn" type="button">Export theme</button>
+      </div>
+      <div class="action-group">
+        <div class="dropdown" id="piThemesDropdown" hidden>
+          <button id="piThemesToggle" type="button" class="dropdown-toggle ghost" aria-haspopup="true" aria-expanded="false">Pi themes <span class="caret" aria-hidden="true">▾</span></button>
+          <div class="dropdown-menu" role="menu" aria-label="Pi theme actions">
+            <label for="piThemeSelect" class="menu-label">Saved themes</label>
+            <select id="piThemeSelect" aria-label="Themes saved in Pi"><option value="">Pi themes…</option></select>
+            <button id="refreshPiThemesBtn" type="button">Refresh themes</button>
+            <button id="saveToPiBtn" type="button">Save to Pi</button>
+            <button id="activatePiThemeBtn" type="button">Activate in Pi</button>
+            <button id="setDefaultPiThemeBtn" type="button">Set Pi default</button>
+          </div>
+        </div>
+        <div class="dropdown" id="piSessionsDropdown" hidden>
+          <button id="piSessionsToggle" type="button" class="dropdown-toggle ghost" aria-haspopup="true" aria-expanded="false">Pi sessions <span class="caret" aria-hidden="true">▾</span></button>
+          <div class="dropdown-menu" role="menu" aria-label="Pi session actions">
+            <label for="piSessionSelect" class="menu-label">Sessions</label>
+            <select id="piSessionSelect" aria-label="Pi sessions"><option value="">Pi sessions…</option></select>
+            <button id="refreshPiSessionsBtn" type="button">Refresh sessions</button>
+            <button id="viewPiSessionBtn" type="button">View session</button>
+            <button id="saveSessionToPiBtn" type="button">Import session to Pi</button>
+          </div>
+        </div>
+      </div>
       <input id="fileInput" type="file" accept=".json,application/json" hidden>
       <input id="sessionInput" type="file" accept=".jsonl,.jsonl.txt,application/json" hidden>
     </div>
