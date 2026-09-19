@@ -58,7 +58,7 @@ JSON for tool calls, shows placeholder for thinking, never renders markdown or i
 9. [done] Audit the current diff, verify GitHub issue policy, and create the approved tracking issue.
 10. [done] Move the work to a feature branch and complete available verification.
 11. [done] Split the implementation into reviewable Conventional Commit work units and record commit identities.
-12. [in progress] Open a concise English pull request linked to the approved issue, with exactly one `type:*` label.
+12. [done] Open a concise English pull request linked to the approved issue, with exactly one `type:*` label.
 
 ## Delivery evidence
 - Issue: https://github.com/belewer/theme-builder-pi/issues/1 (`enhancement`, `status:approved`)
@@ -68,4 +68,4 @@ JSON for tool calls, shows placeholder for thinking, never renders markdown or i
   - `bbc3fed54f32a13bda6f0e2e5a5e01a46acdcf7c` — `chore: ignore local Pi runtime state`
   - `261f2f8a6ce66625bb2b6c1e0af6f0f35b9d18c0` — `feat(extension): improve Pi session discovery`
   - `cf9adc3491831218bb4889c57945039cdc01984e` — `feat(web): render real Pi session records`
-- Pull request: pending
+- Pull request: https://github.com/belewer/theme-builder-pi/pull/2 (`type:feature`)
