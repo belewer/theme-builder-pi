@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pi Theme Builder</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2367e8f9' d='M12 0C13 9 15 11 24 12 15 13 13 15 12 24 11 15 9 13 0 12 9 11 11 9 12 0Z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -19,11 +20,11 @@
         <button id="resetBtn" type="button" class="ghost" title="Reset this draft to the Dark preset">Reset theme</button>
       </div>
       <div class="action-group">
-        <button class="primary" id="exportBtn" type="button">Export theme</button>
+        <button class="secondary" id="exportBtn" type="button">Export theme</button>
       </div>
       <div class="action-group">
         <div class="dropdown" id="piThemesDropdown" hidden>
-          <button id="piThemesToggle" type="button" class="dropdown-toggle ghost" aria-haspopup="true" aria-expanded="false">Pi themes <span class="caret" aria-hidden="true">▾</span></button>
+          <button id="piThemesToggle" type="button" class="dropdown-toggle pi-trigger" aria-haspopup="true" aria-expanded="false">Pi themes <span class="caret" aria-hidden="true">▾</span></button>
           <div class="dropdown-menu" role="menu" aria-label="Pi theme actions">
             <label for="piThemeSelect" class="menu-label">Saved themes</label>
             <select id="piThemeSelect" aria-label="Themes saved in Pi"><option value="">Pi themes…</option></select>
@@ -34,7 +35,7 @@
           </div>
         </div>
         <div class="dropdown" id="piSessionsDropdown" hidden>
-          <button id="piSessionsToggle" type="button" class="dropdown-toggle ghost" aria-haspopup="true" aria-expanded="false">Pi sessions <span class="caret" aria-hidden="true">▾</span></button>
+          <button id="piSessionsToggle" type="button" class="dropdown-toggle pi-trigger" aria-haspopup="true" aria-expanded="false">Pi sessions <span class="caret" aria-hidden="true">▾</span></button>
           <div class="dropdown-menu" role="menu" aria-label="Pi session actions">
             <label for="piSessionSelect" class="menu-label">Sessions</label>
             <select id="piSessionSelect" aria-label="Pi sessions"><option value="">Pi sessions…</option></select>
