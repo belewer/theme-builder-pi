@@ -28,8 +28,7 @@ sizes (current session has 8 lines over 24 000 chars; largest 118 329 chars).
    via `bounded()` is unchanged.
 3. [done] Frontend: show flagged oversized sessions in the dropdown with a clear
    "(too large to open)" suffix and refuse selection with a toast.
-4. [pending — requires interactive Pi session reload of /theme-builder] Verify: reload extension flow, list count matches disk (83), current
-   session loads without the line-limit error.
+4. [done] Verify the reloaded `/theme-builder` extension flow and confirm real sessions load without the previous line-limit error.
 
 ## Non-goals
 - Raising the 5 MB open/import cap.
@@ -46,7 +45,7 @@ JSON for tool calls, shows placeholder for thinking, never renders markdown or i
    image blocks as data-URI <img>.
 6. [done] Safe minimal markdown renderer (escape first, then headings/bold/italic/
    inline code/fenced code/lists/links) using existing md* CSS tokens.
-7. [pending — manual browser check] Verify rendering of the current real session.
+7. [done] Verify rendering of a current real session in the browser.
 
 ## Follow-up 2: internal noise and tool output presentation
 8. [done] Compact custom entries (gentle-pi.session-change/-worktree/review-reminder-receipt,
@@ -63,7 +62,7 @@ JSON for tool calls, shows placeholder for thinking, never renders markdown or i
 ## Delivery evidence
 - Issue: https://github.com/belewer/theme-builder-pi/issues/1 (`enhancement`, `status:approved`)
 - Branch: `feat/session-viewer`
-- Verification: `node --check app.js`; `git diff --check`; DOM ID/static safety review passed. No project test/typecheck scripts exist. Browser runtime verification remains manual.
+- Verification: `npm run check`; `git diff --check`; DOM ID/static safety review passed; GitHub Actions passed; manual `/theme-builder` browser verification confirmed by the user.
 - Commits:
   - `bbc3fed54f32a13bda6f0e2e5a5e01a46acdcf7c` — `chore: ignore local Pi runtime state`
   - `261f2f8a6ce66625bb2b6c1e0af6f0f35b9d18c0` — `feat(extension): improve Pi session discovery`
