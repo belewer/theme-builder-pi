@@ -35,7 +35,8 @@
   "pi": {
     "extensions": [
       "./extensions"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/pi-themes.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
