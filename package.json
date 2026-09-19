@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Browser-based theme editor for Pi",
   "private": true,
+  "scripts": {
+    "check": "node --check app.js"
+  },
   "keywords": ["pi-package", "pi", "themes"],
   "pi": { "extensions": ["./extensions"] },
   "peerDependencies": { "@mariozechner/pi-coding-agent": "*" }
