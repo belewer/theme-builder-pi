@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -186,6 +186,6 @@ async function openBrowser(url: string) {
   return false;
 }
 export default function (pi: ExtensionAPI) {
-  pi.registerCommand("theme-builder", { description: "Open the Pi Theme Builder in your browser", handler: async (_args, ctx) => { if (!ctx.hasUI) throw new Error("/theme-builder requires an interactive Pi session"); activeContext = ctx; const url = await startServer(); if (await openBrowser(url)) ctx.ui.notify("Pi Theme Builder opened in your browser", "success"); else ctx.ui.notify(`Could not launch a browser. Open this local URL manually: ${url}`, "warning"); } });
+  pi.registerCommand("theme-builder", { description: "Open the Pi Theme Builder in your browser", handler: async (_args, ctx) => { if (!ctx.hasUI) throw new Error("/theme-builder requires an interactive Pi session"); activeContext = ctx; const url = await startServer(); if (await openBrowser(url)) ctx.ui.notify("Pi Theme Builder opened in your browser", "info"); else ctx.ui.notify(`Could not launch a browser. Open this local URL manually: ${url}`, "warning"); } });
   pi.on("session_shutdown", async () => { if (server) await new Promise<void>(done => server!.close(() => done())); server = undefined; serverUrl = undefined; activeContext = undefined; });
 }
