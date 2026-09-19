@@ -46,9 +46,11 @@ async function listThemes() {
   catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
 }
 function requireSessionRoot() {
-  const root = activeContext?.sessionManager.getSessionDir();
-  if (!root) throw new Error("Pi has no persistent session directory in this session");
-  return resolve(root);
+  const dir = activeContext?.sessionManager.getSessionDir();
+  if (!dir) throw new Error("Pi has no persistent session directory in this session");
+  const resolved = resolve(dir);
+  const name = basename(resolved);
+  return name.startsWith("--") && name.endsWith("--") ? dirname(resolved) : resolved;
 }
 function safeSessionId(value: unknown) {
   if (typeof value !== "string" || !value.endsWith(".jsonl") || value.length > 500) throw new Error("Invalid session id");
@@ -63,11 +65,29 @@ function sessionPath(id: unknown) {
 }
 async function sessionSummary(path: string, root: string, current: string | undefined) {
   const stat = await fs.stat(path);
-  if (stat.size > MAX_SESSION_BYTES) return undefined;
+  const base = { id: relative(root, path).split(sep).join("/"), name: basename(path, ".jsonl"), modified: stat.mtimeMs, bytes: stat.size, current: resolve(path) === resolve(current || "") };
+  if (stat.size > MAX_SESSION_BYTES) return { ...base, cwd: null, timestamp: null, title: null, tooLarge: true };
   const text = await fs.readFile(path, "utf8");
   const first = text.split(/\r?\n/, 1)[0]; let header: { cwd?: string; timestamp?: string } = {};
   try { header = JSON.parse(first); } catch { /* The viewer will report malformed files when opened. */ }
-  return { id: relative(root, path).split(sep).join("/"), name: basename(path, ".jsonl"), modified: stat.mtimeMs, bytes: stat.size, cwd: typeof header.cwd === "string" ? header.cwd : null, timestamp: typeof header.timestamp === "string" ? header.timestamp : null, current: resolve(path) === resolve(current || "") };
+  return { ...base, cwd: typeof header.cwd === "string" ? header.cwd : null, timestamp: typeof header.timestamp === "string" ? header.timestamp : null, title: extractSessionTitle(text), tooLarge: false };
+}
+function extractSessionTitle(text: string): string | null {
+  // The first user message makes a readable label; bounded to the first 60 records for cheap scanning.
+  for (const line of text.split(/\r?\n/).filter(Boolean).slice(0, 60)) {
+    let record: unknown; try { record = JSON.parse(line); } catch { continue; }
+    if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+    const message = (record as { message?: unknown }).message;
+    if (!message || typeof message !== "object" || (message as { role?: unknown }).role !== "user") continue;
+    const content = (message as { content?: unknown }).content;
+    const parts = Array.isArray(content) ? content : [content];
+    for (const part of parts) {
+      const value = typeof part === "string" ? part : (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "");
+      const trimmed = value.replace(/\s+/g, " ").trim();
+      if (trimmed) return trimmed.length > 80 ? trimmed.slice(0, 80).trimEnd() + "…" : trimmed;
+    }
+  }
+  return null;
 }
 async function listSessions() {
   const root = requireSessionRoot(), current = activeContext?.sessionManager.getSessionFile(); const files: string[] = [];
@@ -102,7 +122,7 @@ async function serveStatic(pathname: string, response: ServerResponse) {
 async function handleApi(request: IncomingMessage, response: ServerResponse, url: URL) {
   if (request.headers["x-theme-builder-token"] !== token) return send(response, 401, { error: "Unauthorized" });
   try {
-    if (request.method === "GET" && url.pathname === "/api/config") return send(response, 200, { agentDir: agentDir(), themesDir: themesDir(), sessionDir: activeContext?.sessionManager.getSessionDir() ?? null, activeSession: activeContext?.sessionManager.getSessionFile() ?? null });
+    if (request.method === "GET" && url.pathname === "/api/config") return send(response, 200, { agentDir: agentDir(), themesDir: themesDir(), sessionDir: activeContext?.sessionManager.getSessionDir() ?? null, sessionRoot: activeContext?.sessionManager.getSessionDir() ? requireSessionRoot() : null, activeSession: activeContext?.sessionManager.getSessionFile() ?? null });
     if (request.method === "GET" && url.pathname === "/api/themes") return send(response, 200, { themes: await listThemes() });
     if (request.method === "GET" && url.pathname === "/api/theme") { const filename = safeThemeFilename(url.searchParams.get("filename")); const text = await fs.readFile(themePath(filename), "utf8"); if (Buffer.byteLength(text) > MAX_THEME_BYTES) throw new Error("Theme exceeds 1 MB"); return send(response, 200, { filename, theme: JSON.parse(text) }); }
     if (request.method === "POST" && url.pathname === "/api/themes") {
