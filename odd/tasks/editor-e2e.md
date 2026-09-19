@@ -30,20 +30,20 @@ The project currently validates only JavaScript syntax. Browser regressions in e
 
 ## Tasks
 
-- [ ] **E2E-1 — Add the editor Playwright harness and critical-flow tests**
+- [x] **E2E-1 — Add the editor Playwright harness and critical-flow tests**
   - Route: delegated (`gentle-ai-worker`); multi-file write and preparation triggers.
   - Expected surfaces: `package.json`, `package-lock.json`, `playwright.config.js`, `scripts/serve.mjs`, `tests/editor.spec.js`, `tests/fixtures/**`.
   - Checks: `npm run check`; `npm run test:e2e`.
-  - Evidence: harness implemented; `npm run check` passed. Local Chromium execution is blocked because the WSL host lacks Playwright system libraries and interactive sudo is required. CI will provide the first full browser run.
-- [ ] **E2E-2 — Integrate E2E execution into CI and user documentation**
+  - Evidence: commit `62df198`; syntax check passed locally; all eight Chromium tests passed in CI job `e2e`.
+- [x] **E2E-2 — Integrate E2E execution into CI and user documentation**
   - Route: delegated (`gentle-ai-worker`); multi-file write trigger.
   - Expected surfaces: `.github/workflows/ci.yml`, `.gitignore`, `README.md`.
   - Checks: workflow structural readback; `npm run check`; `npm run test:e2e`.
-  - Evidence: pending.
-- [ ] **E2E-3 — Verify and deliver the PR**
+  - Evidence: commit `62df198`; GitHub Actions jobs `check` and `e2e` both passed.
+- [x] **E2E-3 — Verify and deliver the PR**
   - Route: delegated verification (`gentle-ai-verify`) followed by parent delivery.
   - Checks: clean install, syntax check, Chromium E2E suite, PR checks.
-  - Evidence: pending.
+  - Evidence: `npm ci` and `npm run check` passed locally; local Chromium was unavailable due to missing WSL libraries; PR #10 supplied the successful browser run and is mergeable.
 
 ## Acceptance criteria
 
@@ -55,15 +55,18 @@ The project currently validates only JavaScript syntax. Browser regressions in e
 
 ## Progress
 
-The E2E harness and tests are implemented but E2E-1 remains open until Chromium executes successfully. The local WSL host has no viable browser because 26 Playwright system packages are absent; installing them requires an interactive sudo password. Continue with CI integration so GitHub's runner can install dependencies and provide the first full run.
+All three tasks are complete. The implementation is committed and published in PR #10. The candidate contains approximately 417 authored changed lines excluding the generated lockfile, slightly above the initial forecast but remains one cohesive test-tooling work unit.
 
 ## Verification evidence
 
-- `npm run check`: passed.
-- `npm run test:e2e`: blocked before test execution; Chromium loader cannot find `libnspr4.so`.
-- `npx playwright install-deps --dry-run chromium`: reports 26 missing Ubuntu packages.
-- Static server smoke checks: expected 200, 404, 405, and traversal rejection responses observed by the delegated writer.
+- `npm ci`: passed locally.
+- `npm run check`: passed locally and in GitHub Actions.
+- `npm run test:e2e`: local execution blocked before assertions because the WSL host lacks `libnspr4.so`; all eight tests passed in GitHub Actions after Playwright installed Chromium system dependencies.
+- Static server smoke checks: expected 200, 404, 405, and traversal rejection responses observed.
+- Independent selector and behavior readback: passed.
+- PR checks: `check` and `e2e` succeeded for commit `62df198`.
+- PR: https://github.com/belewer/theme-builder-pi/pull/10
 
 ## Next step
 
-Delegate E2E-2, commit the coherent PR candidate, and use CI to complete browser verification.
+Review and merge PR #10. The Pi extension/API E2E work remains intentionally deferred to a separate issue and PR.
