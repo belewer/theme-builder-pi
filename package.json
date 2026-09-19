@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Browser-based theme editor for Pi",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belewer/theme-builder-pi.git"
+  },
+  "homepage": "https://github.com/belewer/theme-builder-pi#readme",
+  "bugs": {
+    "url": "https://github.com/belewer/theme-builder-pi/issues"
+  },
   "engines": {
     "node": ">=22.19.0"
   },

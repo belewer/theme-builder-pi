@@ -23,13 +23,13 @@ Prepare `pi-theme-builder` for a reliable public npm release and discovery in th
   - Added strict TypeScript validation for the extension.
   - Added tarball validation and a clean install/load smoke test through Pi's real extension loader.
   - Retained browser syntax checks and the Playwright CI job.
-  - Evidence: `npm run check`, `npm run typecheck`, and `npm run test:package` passed; independent verification passed. Local e2e execution remains environment-skipped because the host lacks Chromium system library `libnspr4.so`. Commit: pending.
+  - Evidence: `npm run check`, `npm run typecheck`, and `npm run test:package` passed; independent verification passed. Local e2e execution remains environment-skipped because the host lacks Chromium system library `libnspr4.so`. Commit: `bf9cd26`.
 
-- [ ] **Release-facing documentation and gallery presentation**
-  - Remove machine-specific instructions.
-  - Document npm installation, requirements, security boundaries, and verification.
-  - Add gallery preview metadata only when a stable public asset URL is available.
-  - Evidence: pending.
+- [x] **Release-facing documentation and gallery presentation**
+  - Removed machine-specific instructions and added npm/local installation guidance.
+  - Documented requirements, precise security boundaries, development checks, and the distinction between gallery discovery and official endorsement.
+  - Added repository metadata. Gallery preview metadata remains intentionally deferred because no stable public preview asset exists yet.
+  - Evidence: `npm run check`, `npm run typecheck`, `npm run test:package`, and `npm pack --dry-run` passed; independent verification passed. Commit: this documentation work-unit commit.
 
 ## Acceptance criteria
 
