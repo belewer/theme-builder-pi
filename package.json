@@ -2,7 +2,10 @@
   "name": "pi-theme-builder",
   "version": "0.1.0",
   "description": "Browser-based theme editor for Pi",
-  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "check": "node --check app.js",
     "serve": "node scripts/serve.mjs",
@@ -13,13 +16,19 @@
     "pi",
     "themes"
   ],
+  "files": [
+    "extensions",
+    "app.js",
+    "index.html",
+    "style.css"
+  ],
   "pi": {
     "extensions": [
       "./extensions"
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"
