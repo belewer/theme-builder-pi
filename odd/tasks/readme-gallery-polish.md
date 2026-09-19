@@ -20,12 +20,12 @@ Present Pi Theme Builder as a design-led Pi package, clearly communicating the e
   - Verified hashes, formats, dimensions, and packed contents independently.
   - Evidence: byte comparisons and `npm pack --dry-run` passed. Commit: this gallery-assets work-unit commit.
 
-- [ ] **Redesign the README narrative**
-  - Lead with product value and visual identity.
-  - Highlight the live theme workflow, 56-token editor, preview modes, variables, and import/export.
-  - Explain real Pi theme actions and the bounded session viewer/import workflow.
-  - Preserve accurate installation, security, and contributor guidance without repetition.
-  - Evidence: pending.
+- [x] **Redesign the README narrative**
+  - Added a visual hero, concise value proposition, product benefits, and the supplied theme/session/demo media.
+  - Highlighted the 56-token editor, five preview modes, click-to-focus, variables, xterm fidelity, undo/reset, and import/export.
+  - Explained real Pi theme actions and the bounded, local/read-only session viewer/import workflow.
+  - Preserved accurate npm/Git/local installation, security, session CLI, standalone, and contributor guidance.
+  - Evidence: `npm run check`, `npm run typecheck`, `npm run test:package`, and `npm pack --dry-run` passed; independent verification and targeted Markdown/CLI recheck passed. Commit: this README redesign work-unit commit.
 
 ## Acceptance criteria
 
