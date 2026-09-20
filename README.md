@@ -4,7 +4,7 @@
 
 <p><strong>Shape the colors of your terminal companion.</strong> A visual editor for Pi coding-agent themes — 56 tokens, live contextual previews, and one-click integration with your real Pi sessions, entirely in the browser.</p>
 
-<img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/cover.png" alt="Pi Theme Builder editor window: token groups with color swatches on the left and a live Pi session preview on the right" width="960" />
+<img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/cover.png" alt="Pi Theme Builder editor window: token groups with color swatches on the left and a live Pi session preview on the right" width="960" />
 
 <p>
   <a href="https://github.com/belewer/theme-builder-pi/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License: MIT" /></a>
@@ -31,7 +31,7 @@ Pi Theme Builder is a self-contained, vanilla HTML/CSS/JavaScript visual editor 
 When you open the editor with `/theme-builder` inside an interactive Pi session, the **Pi themes** menu talks to your real Pi theme directory — no file juggling required.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/pi-themes.png" alt="Pi themes menu listing saved themes, with actions to refresh the list, save the current draft to Pi, activate it in the running session, and set it as the Pi default" width="960" />
+  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/pi-themes.png" alt="Pi themes menu listing saved themes, with actions to refresh the list, save the current draft to Pi, activate it in the running session, and set it as the Pi default" width="960" />
 </div>
 
 - **List themes** saved in Pi's theme directory.
@@ -45,7 +45,7 @@ When you open the editor with `/theme-builder` inside an interactive Pi session,
 The **Pi sessions** menu lists the real sessions found through Pi's active session directory, so you can inspect your work without leaving the editor.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/pi-sessions.png" alt="Pi sessions menu listing sessions, with actions to refresh the list, view a selected session locally, and import a validated JSONL session into Pi" width="960" />
+  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/pi-sessions.png" alt="Pi sessions menu listing sessions, with actions to refresh the list, view a selected session locally, and import a validated JSONL session into Pi" width="960" />
 </div>
 
 - **List** the real sessions Pi knows about.
@@ -59,7 +59,7 @@ Importing a session only writes a validated file into the project's session fold
 ## See it in action
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/demo.gif" alt="Animation of the Pi Theme Builder in use: selecting a preset, editing tokens while the live preview updates, switching preview modes, and saving the theme to Pi" width="960" />
+  <img src="https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/demo.gif" alt="Animation of the Pi Theme Builder in use: selecting a preset, editing tokens while the live preview updates, switching preview modes, and saving the theme to Pi" width="960" />
 </div>
 
 The built-in demo transcript exercises the whole editor: pick a Dark or Light preset, edit tokens and watch the preview re-render in real time, jump between the five preview modes, manage variables, and push the finished theme to Pi. The animation is a convenience — every capability it shows is also described in prose above, and the editor runs entirely in the browser with no server round-trip behind the preview.

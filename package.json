@@ -1,6 +1,6 @@
 {
   "name": "pi-theme-builder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Browser-based theme editor for Pi",
   "license": "MIT",
   "repository": {
@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "serve": "node scripts/serve.mjs",
     "test:e2e": "playwright test",
-    "test:package": "node scripts/package-smoke.mjs"
+    "test:package": "node scripts/package-smoke.mjs",
+    "prepublishOnly": "npm run check && npm run typecheck && npm run test:package"
   },
   "keywords": [
     "pi-package",
@@ -30,17 +31,28 @@
     "extensions",
     "app.js",
     "index.html",
-    "style.css"
+    "style.css",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "pi": {
     "extensions": [
       "./extensions"
     ],
-    "image": "https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/pi-themes.png",
-    "video": "https://raw.githubusercontent.com/belewer/theme-builder-pi/main/assets/demo.mp4"
+    "image": "https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/pi-themes.png",
+    "video": "https://raw.githubusercontent.com/belewer/theme-builder-pi/1.0.0/assets/demo.mp4"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.85.1 <1"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
