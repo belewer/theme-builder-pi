@@ -31,10 +31,11 @@ Prepare a professional, reproducible, provenance-backed first public release of 
   - Added `scripts/verify-release.mjs` and `docs/RELEASING.md`.
   - Evidence: `node --check scripts/verify-release.mjs`, `npm run check`, `npm run typecheck`, `npm run test:package` passed; `npm view pi-theme-builder@1.0.0` confirms the name is available (E404). Commit: this release-automation work-unit commit.
 
-- [ ] **Verify the release candidate**
-  - Validate package contents, types, loader smoke test, browser suite, workflow syntax, release guards, and clean repository state.
-  - Confirm the npm name is still available and document the external trusted-publisher setup required before tagging.
-  - Evidence: pending.
+- [x] **Verify the release candidate**
+  - Validated package contents, clean-install type resolution, loader smoke, prepublish guard, workflow structure, release invariants, documentation, and repository scope.
+  - Confirmed `pi-theme-builder@1.0.0` remains unpublished and no local/remote tag or GitHub Release exists.
+  - Confirmed the external bootstrap gate: create/protect GitHub Environment `npm`, add a short-lived all-packages write `NPM_TOKEN`, then delete it after `1.0.0` and configure npm Trusted Publishing for `publish.yml`.
+  - Evidence: independent release-candidate verification passed. Local E2E remains environment-blocked by missing `libnspr4.so`; the release workflow installs Chromium system dependencies and the merged baseline previously passed all 8 Playwright tests. Commit: this release-candidate verification work-unit commit.
 
 ## Acceptance criteria
 
