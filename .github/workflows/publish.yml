@@ -1,0 +1,87 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      # Coarse trigger filter: numeric X.Y.Z tags without a "v" prefix.
+      # scripts/verify-release.mjs enforces strict stable SemVer (no
+      # pre-release, no build metadata, no leading zeros) before publishing.
+      - '[0-9]*.[0-9]*.[0-9]*'
+
+# Least privilege. The publish job re-declares its permissions and adds
+# id-token: write, which is required for OIDC Trusted Publishing and automatic
+# provenance on GitHub-hosted runners.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Protected environment holding the one-time bootstrap NPM_TOKEN secret.
+    # After 1.0.0, configure npm Trusted Publishing and delete that secret.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v5
+        with:
+          # Full history so the tag object, its peeled commit, and origin/main
+          # are all available to scripts/verify-release.mjs.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # Intentionally no dependency cache: release builds install from the
+          # lockfile on every run and must not depend on cached state.
+
+      - name: Ensure a recent npm CLI
+        run: npm install -g npm@latest
+
+      - name: Fetch default branch
+        run: git fetch origin main
+
+      - name: Verify release invariants
+        run: node scripts/verify-release.mjs
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      - name: Run package checks
+        run: npm run check && npm run typecheck && npm run test:package
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run editor end-to-end tests
+        run: npm run test:e2e
+
+      - name: Configure npm authentication
+        run: |
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$HOME/.npmrc"
+            echo "Bootstrap mode: authenticating with the temporary NPM_TOKEN."
+          else
+            echo "OIDC mode: no token present; npm authenticates via Trusted Publishing."
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm
+        # One publish path for every release. `--provenance` asks the GitHub
+        # OIDC provider (enabled by id-token: write, above) to sign a sigstore
+        # attestation; that signing is independent of how npm authenticates to
+        # the registry:
+        #   - Bootstrap: NODE_AUTH_TOKEN (the temporary NPM_TOKEN) authenticates
+        #     the publish while GitHub OIDC signs provenance.
+        #   - Later: no token is present, so npm authenticates via Trusted
+        #     Publishing (OIDC) and still signs provenance.
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -20,6 +20,7 @@
     "serve": "node scripts/serve.mjs",
     "test:e2e": "playwright test",
     "test:package": "node scripts/package-smoke.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
     "prepublishOnly": "npm run check && npm run typecheck && npm run test:package"
   },
   "keywords": [
