@@ -25,11 +25,11 @@ Publish the already-created, immutable annotated tag `1.0.0` after the original 
 ## Tasks
 
 - [x] **Implement bounded recovery workflow**
-  - Added an exact-identity recovery validator and no-input manual workflow.
-  - Bound the remote tag object, peeled commit, tree, package, version, failed run, dispatch branch, and npm absence without changing the tag.
-  - The workflow checks out and tests only the tagged tree, requires the bootstrap secret, and publishes with provenance.
-  - Fixed future tag workflows by force-materializing the annotated tag object using safely quoted runner environment data.
-  - Evidence: pre/post happy paths and ten negative paths passed; independent adversarial verification and shell-injection/token-handling re-verification passed. Commit: this bounded-recovery work-unit commit.
+  - Exact frozen-identity validation and annotated-tag materialization passed in recovery run `35517652798`.
+  - The run then exposed npm 12 (`npm@latest`) changing `npm pack --json` from the npm 10/11 array to a package-name-keyed object; publication did not start.
+  - Hardened the main smoke parser for both shapes, copied that verified harness before detached checkout, and tested only the frozen tagged tree externally.
+  - The recovery publish uses `--ignore-scripts` only after explicitly running the frozen check/typecheck and the stronger copied loader smoke, preventing the obsolete frozen parser from re-running; tarball bytes remain identical.
+  - Evidence: npm 10 and npm 12 full smoke paths passed; 19 malformed/ambiguous parser fixtures failed closed; frozen-tree checksums remained unchanged; independent verification confirmed all identity, environment, token, provenance, and fail-closed guarantees. Commit: this npm-latest recovery work-unit commit.
 
 - [ ] **Deliver and execute recovery**
   - Create an approved issue and PR, require CI, and merge the recovery workflow to `main`.
