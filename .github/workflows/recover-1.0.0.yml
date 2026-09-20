@@ -1,0 +1,126 @@
+# One-time manual recovery for the failed first release pi-theme-builder@1.0.0.
+#
+# The normal publish workflow (publish.yml) failed on run 35515410380 because
+# actions/checkout dereferences an annotated tag and materializes the
+# runner-local tag ref as a lightweight commit ref, so the annotated tag object
+# never reached the runner and scripts/verify-release.mjs refused to publish.
+# The immutable tag 1.0.0 and its commit already exist; this workflow is the
+# bounded, self-disabling recovery that publishes that exact tagged tree.
+#
+# Frozen recovery identity (do not change — there are deliberately no inputs):
+#   package        pi-theme-builder
+#   version/tag    1.0.0
+#   tag object     1ac644988c3650fad9d0e7600a0dc306faaeea96   (annotated)
+#   peeled commit  be9381c9864642fe94fcd46356e0197b4746f23f
+#   tagged tree    7742ad133abf30a0421bb5129288ca23acc721c2
+#   failed run     35515410380
+#
+# Workflow logic comes from current protected main; package bytes come from the
+# frozen tag tree. It fails closed on any of: npm already has 1.0.0, the tag
+# object/peeled commit differ, remote main history is substituted, the
+# NPM_TOKEN secret is missing, the dispatch did not come from main, or the
+# tagged-tree bytes differ from the frozen identity. It never mutates the
+# remote tag. Once npm reports 1.0.0 it can never publish again.
+
+name: Recover 1.0.0
+
+on:
+  workflow_dispatch:
+
+# Least privilege. id-token: write is required for GitHub OIDC provenance.
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    # Protected environment holding the one-time bootstrap NPM_TOKEN secret.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Require dispatch from main
+        run: |
+          if [ "${GITHUB_REF_NAME:-}" != "main" ] || [ "${GITHUB_REF_TYPE:-}" != "branch" ]; then
+            echo "::error::Recovery must be dispatched from main (got ${GITHUB_REF_TYPE:-} ${GITHUB_REF_NAME:-}). Refusing to run."
+            exit 1
+          fi
+
+      - name: Check out the recovery workflow source (main)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          # Full history so the frozen release commit and the remote main
+          # ancestry checks below have every object they need.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # Intentionally no dependency cache: recovery installs from the
+          # lockfile on every run and must not depend on cached state.
+
+      - name: Ensure a recent npm CLI
+        run: npm install -g npm@latest
+
+      - name: Fetch remote main and the frozen tag object
+        run: |
+          git fetch origin main
+          # Force-fetch the real annotated tag object into the ephemeral local
+          # ref. checkout may have left refs/tags/1.0.0 as a lightweight commit
+          # ref; --force replaces it with the true annotated tag object without
+          # touching the remote tag.
+          git fetch --force origin "refs/tags/1.0.0:refs/tags/1.0.0"
+
+      - name: Copy the recovery validator out of the repository
+        # The detached checkout below removes this script from the work tree,
+        # so keep a copy in the runner temp directory for the post-checkout run.
+        run: cp scripts/verify-release-recovery.mjs "$RUNNER_TEMP/verify-release-recovery.mjs"
+
+      - name: Verify frozen identity before checkout
+        run: node "$RUNNER_TEMP/verify-release-recovery.mjs" pre
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+
+      - name: Detach to the frozen release commit
+        run: git checkout --detach be9381c9864642fe94fcd46356e0197b4746f23f
+
+      - name: Verify checked-out tree
+        run: node "$RUNNER_TEMP/verify-release-recovery.mjs" post
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      - name: Run package checks
+        run: npm run check && npm run typecheck && npm run test:package
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run editor end-to-end tests
+        run: npm run test:e2e
+
+      - name: Authenticate to npm with the temporary bootstrap token
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN secret is missing; refusing to publish."
+            exit 1
+          fi
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
+          echo "Bootstrap mode: authenticating with the temporary NPM_TOKEN."
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm
+        # --provenance asks the GitHub OIDC provider (id-token: write, above)
+        # to sign a sigstore attestation; the temporary NPM_TOKEN authenticates
+        # the publish to the registry. Provenance therefore begins with 1.0.0.
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

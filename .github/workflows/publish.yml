@@ -44,6 +44,15 @@ jobs:
       - name: Fetch default branch
         run: git fetch origin main
 
+      - name: Materialize the annotated tag object
+        # actions/checkout dereferences an annotated tag and stores only its
+        # peeled commit as a lightweight runner-local ref, so refs/tags/<tag>
+        # loses the annotated object (this broke the 1.0.0 first publish on run
+        # 35515410380). Force-fetch the real annotated tag object from the
+        # remote into the ephemeral local ref so scripts/verify-release.mjs
+        # sees a true annotated tag. This never mutates the remote tag.
+        run: git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+
       - name: Verify release invariants
         run: node scripts/verify-release.mjs
         env:
@@ -65,7 +74,7 @@ jobs:
       - name: Configure npm authentication
         run: |
           if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$HOME/.npmrc"
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
             echo "Bootstrap mode: authenticating with the temporary NPM_TOKEN."
           else
             echo "OIDC mode: no token present; npm authenticates via Trusted Publishing."
