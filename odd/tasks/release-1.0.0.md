@@ -31,12 +31,12 @@ Prepare a professional, reproducible, provenance-backed first public release of 
   - Added `scripts/verify-release.mjs` and `docs/RELEASING.md`.
   - Evidence: `node --check scripts/verify-release.mjs`, `npm run check`, `npm run typecheck`, `npm run test:package` passed; `npm view pi-theme-builder@1.0.0` confirms the name is available (E404). Commit: this release-automation work-unit commit.
 
-- [ ] **Verify the release candidate**
-  - Local release-candidate verification passed, but PR #14 exposed npm-version-dependent installation of the optional Pi peer: Node 22.19/npm 10 passed while Node 24/npm 11 could not resolve the type-only import.
-  - Keep the runtime peer optional while making development type resolution deterministic by adding the tested Pi package as a dev dependency.
-  - Re-run local package checks and require the full Node 22.19/24 + Playwright PR matrix to pass before merge.
-  - Confirm `pi-theme-builder@1.0.0` remains unpublished and retain the documented external npm bootstrap gate.
-  - Evidence: local remediation complete — added `@earendil-works/pi-coding-agent@^0.85.1` as a devDependency (peer stays optional `>=0.85.1 <1`), regenerated `package-lock.json` with npm (no hand-edit), and confirmed consumer `dependencies` is empty. `npm run check`, `npm run typecheck`, `npm run test:package`, `npm run prepublishOnly`, `npm pack --dry-run`, and a clean isolated `npm ci` + `npm run typecheck` all pass locally (Node 22.23.2/npm 10). Remote Node 22.19/24 + Playwright CI matrix still required before final verification.
+- [x] **Verify the release candidate**
+  - PR #14 exposed and remediated npm-version-dependent installation of the optional Pi peer: the runtime peer remains optional while tested 0.85.x types are an explicit dev dependency.
+  - Local clean-install, typecheck, package, prepublish, loader-smoke, tarball, workflow, and release-invariant verification passed.
+  - Remote CI passed on exact Node 22.19.0 and Node 24, and all 8 Playwright tests passed on Node 24.
+  - Confirmed `pi-theme-builder@1.0.0` remains unpublished and retained the documented external npm bootstrap gate.
+  - Evidence: CI run `35502317843` passed all three jobs. Commits: `e9426c3` plus this final verification record.
 
 ## Acceptance criteria
 
