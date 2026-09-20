@@ -8,11 +8,16 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The declared Node.js floor (exact) and the current Node line.
+        node: ['22.19.0', '24']
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -24,6 +29,7 @@ jobs:
         run: npm run test:package
 
   e2e:
+    # Playwright runs once (Chromium is expensive); Node 24 covers it.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
