@@ -31,11 +31,12 @@ Prepare a professional, reproducible, provenance-backed first public release of 
   - Added `scripts/verify-release.mjs` and `docs/RELEASING.md`.
   - Evidence: `node --check scripts/verify-release.mjs`, `npm run check`, `npm run typecheck`, `npm run test:package` passed; `npm view pi-theme-builder@1.0.0` confirms the name is available (E404). Commit: this release-automation work-unit commit.
 
-- [x] **Verify the release candidate**
-  - Validated package contents, clean-install type resolution, loader smoke, prepublish guard, workflow structure, release invariants, documentation, and repository scope.
-  - Confirmed `pi-theme-builder@1.0.0` remains unpublished and no local/remote tag or GitHub Release exists.
-  - Confirmed the external bootstrap gate: create/protect GitHub Environment `npm`, add a short-lived all-packages write `NPM_TOKEN`, then delete it after `1.0.0` and configure npm Trusted Publishing for `publish.yml`.
-  - Evidence: independent release-candidate verification passed. Local E2E remains environment-blocked by missing `libnspr4.so`; the release workflow installs Chromium system dependencies and the merged baseline previously passed all 8 Playwright tests. Commit: this release-candidate verification work-unit commit.
+- [ ] **Verify the release candidate**
+  - Local release-candidate verification passed, but PR #14 exposed npm-version-dependent installation of the optional Pi peer: Node 22.19/npm 10 passed while Node 24/npm 11 could not resolve the type-only import.
+  - Keep the runtime peer optional while making development type resolution deterministic by adding the tested Pi package as a dev dependency.
+  - Re-run local package checks and require the full Node 22.19/24 + Playwright PR matrix to pass before merge.
+  - Confirm `pi-theme-builder@1.0.0` remains unpublished and retain the documented external npm bootstrap gate.
+  - Evidence: local remediation complete — added `@earendil-works/pi-coding-agent@^0.85.1` as a devDependency (peer stays optional `>=0.85.1 <1`), regenerated `package-lock.json` with npm (no hand-edit), and confirmed consumer `dependencies` is empty. `npm run check`, `npm run typecheck`, `npm run test:package`, `npm run prepublishOnly`, `npm pack --dry-run`, and a clean isolated `npm ci` + `npm run typecheck` all pass locally (Node 22.23.2/npm 10). Remote Node 22.19/24 + Playwright CI matrix still required before final verification.
 
 ## Acceptance criteria
 
