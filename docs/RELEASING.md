@@ -53,6 +53,13 @@ before publish:
 - the working tree is clean;
 - the exact `name@version` is not already published.
 
+The publish workflow force-fetches the annotated tag object from the remote into
+the runner-local ref before running `scripts/verify-release.mjs`
+(`git fetch --force origin "refs/tags/${{ github.ref_name }}:..."`). Without
+this, `actions/checkout` dereferences an annotated tag and stores only its
+peeled commit as a lightweight runner-local ref, so the annotated object never
+reaches the runner. See "Incident: 1.0.0 first-release recovery".
+
 Run it locally with:
 
 ```sh
@@ -99,6 +106,44 @@ authentication) begins with the first release after the token is deleted.
 
 The bootstrap token is strictly temporary. It is never a permanent
 authentication path.
+
+## Incident: 1.0.0 first-release recovery
+
+The first publish run (`35515410380`) failed before publication because
+`actions/checkout` materialized the runner-local `refs/tags/1.0.0` as a
+lightweight commit ref instead of the annotated tag object, so
+`scripts/verify-release.mjs` correctly refused to publish a non-annotated tag.
+The tag `1.0.0` and its commit were already created and immutable, and no npm
+version had been published.
+
+Two changes followed, both leaving the remote tag untouched:
+
+1. `publish.yml` now force-fetches the annotated tag object from the remote into
+   the ephemeral local ref before `verify-release.mjs` (see "Automated checks"),
+   so every future release materializes a true annotated tag.
+2. A one-time, manual recovery workflow `.github/workflows/recover-1.0.0.yml`
+   publishes the already-created `1.0.0` tag. It is deliberately not reusable:
+   it accepts no inputs, hard-codes the frozen identity, and fails closed (and
+   permanently self-disables) once npm reports `pi-theme-builder@1.0.0` already
+   exists.
+
+The frozen recovery identity is:
+
+- package `pi-theme-builder`
+- version/tag `1.0.0`
+- annotated tag object `1ac644988c3650fad9d0e7600a0dc306faaeea96`
+- peeled commit `be9381c9864642fe94fcd46356e0197b4746f23f`
+- tagged tree `7742ad133abf30a0421bb5129288ca23acc721c2`
+- failed run `35515410380`
+
+The recovery workflow runs its own deterministic validator
+(`scripts/verify-release-recovery.mjs`) before and after a detached checkout of
+the frozen commit, re-runs the full package and Playwright checks, authenticates
+with the temporary `NPM_TOKEN`, and publishes with `--provenance`. It fails
+closed if the dispatch did not come from `main`, the tag object or peeled commit
+differs, remote `main` no longer contains the frozen release commit, the
+`NPM_TOKEN` secret is missing, npm already has `1.0.0`, or the tagged-tree bytes
+differ from the frozen identity. The remote tag is never mutated.
 
 ## OIDC migration (after `1.0.0`)
 
