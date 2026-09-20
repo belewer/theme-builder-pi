@@ -15,7 +15,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+// The script normally derives the repository root from its own location, but
+// the recovery workflow copies this harness to RUNNER_TEMP before detaching to
+// the frozen tag and must point it back at the frozen checkout. REPO_ROOT is
+// that override; it defaults to the script's own parent directory so the
+// normal `npm run test:package` path keeps working unchanged.
+const root = resolve(process.env.REPO_ROOT ?? resolve(fileURLToPath(new URL("..", import.meta.url))));
 
 const REQUIRED_FILES = [
   "package.json",
@@ -59,14 +64,60 @@ function fail(message) {
   throw new Error(message);
 }
 
+// `npm pack --json` has emitted two shapes across CLI versions:
+//   - npm 10 / npm 11: a single-element array  [{ name, version, filename, files, ... }]
+//   - npm 12:           an object keyed by package name  { "<name>": { ... } }
+// Accept both, but only when the output is unambiguous: exactly one artifact
+// whose reported name and version match the package being packed.
+function selectArtifact(packed, pkgName, pkgVersion) {
+  let artifact;
+  if (Array.isArray(packed)) {
+    if (packed.length !== 1) {
+      fail(`npm pack reported ${packed.length} artifacts; expected exactly one`);
+    }
+    artifact = packed[0];
+  } else if (packed !== null && typeof packed === "object") {
+    const keys = Object.keys(packed);
+    if (keys.length !== 1) {
+      fail(`npm pack reported ${keys.length} top-level entries; expected exactly one keyed by package name`);
+    }
+    if (keys[0] !== pkgName) {
+      fail(`npm pack keyed its output by "${keys[0]}", expected "${pkgName}"`);
+    }
+    artifact = packed[keys[0]];
+  } else {
+    fail("npm pack returned an unrecognized --json shape");
+  }
+
+  if (artifact === null || typeof artifact !== "object" || Array.isArray(artifact)) {
+    fail("npm pack returned a malformed artifact entry");
+  }
+  if (artifact.name !== pkgName) {
+    fail(`npm pack artifact name "${artifact.name}" does not match package "${pkgName}"`);
+  }
+  if (artifact.version !== pkgVersion) {
+    fail(`npm pack artifact version "${artifact.version}" does not match package version "${pkgVersion}"`);
+  }
+  if (typeof artifact.filename !== "string" || artifact.filename.length === 0) {
+    fail("npm pack did not report a tarball filename");
+  }
+  if (!Array.isArray(artifact.files)) {
+    fail("npm pack did not report a tarball file list");
+  }
+  return artifact;
+}
+
 async function main() {
+  // 0. Read the package identity up front so npm pack's --json output can be
+  //    cross-checked against it regardless of which CLI shape it emits.
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+
   // 1. Pack the package and capture its contents.
   const pack = run("npm", ["pack", "--json"], { cwd: root });
   const packed = JSON.parse(pack.stdout);
-  const artifact = Array.isArray(packed) ? packed[0] : packed;
-  if (!artifact?.filename) fail("npm pack did not report a tarball filename");
+  const artifact = selectArtifact(packed, pkg.name, pkg.version);
   const tarball = join(root, artifact.filename);
-  const files = new Set((artifact.files ?? []).map((entry) => entry.path));
+  const files = new Set(artifact.files.map((entry) => entry.path));
 
   // 2. Validate tarball contents.
   for (const required of REQUIRED_FILES) {

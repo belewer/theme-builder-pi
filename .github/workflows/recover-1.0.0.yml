@@ -74,10 +74,17 @@ jobs:
           # touching the remote tag.
           git fetch --force origin "refs/tags/1.0.0:refs/tags/1.0.0"
 
-      - name: Copy the recovery validator out of the repository
-        # The detached checkout below removes this script from the work tree,
-        # so keep a copy in the runner temp directory for the post-checkout run.
-        run: cp scripts/verify-release-recovery.mjs "$RUNNER_TEMP/verify-release-recovery.mjs"
+      - name: Copy recovery harnesses out of the repository
+        # The detached checkout below removes these scripts from the work tree,
+        # so keep copies in the runner temp directory for the post-checkout run.
+        # verify-release-recovery.mjs is the frozen-identity validator;
+        # package-smoke.mjs is the hardened main-sourced smoke harness that can
+        # parse both the npm 10/11 array and npm 12 keyed-object `npm pack
+        # --json` shapes (the frozen tag's own copy predates that fix and would
+        # fail under the runner's npm).
+        run: |
+          cp scripts/verify-release-recovery.mjs "$RUNNER_TEMP/verify-release-recovery.mjs"
+          cp scripts/package-smoke.mjs "$RUNNER_TEMP/package-smoke.mjs"
 
       - name: Verify frozen identity before checkout
         run: node "$RUNNER_TEMP/verify-release-recovery.mjs" pre
@@ -97,8 +104,23 @@ jobs:
       - name: Install dependencies from lockfile
         run: npm ci
 
-      - name: Run package checks
-        run: npm run check && npm run typecheck && npm run test:package
+      - name: Run frozen package checks
+        # `npm run check` and `npm run typecheck` use the frozen tree's own
+        # scripts and sources. `npm run test:package` is intentionally NOT run
+        # here: the frozen tag's package-smoke.mjs predates the npm 12
+        # keyed-object fix and would fail under the runner's npm. The hardened
+        # main-sourced harness runs in the next step against this exact frozen
+        # tree instead.
+        run: npm run check && npm run typecheck
+
+      - name: Run frozen package smoke harness (main-sourced)
+        # The harness copied out of main before the detached checkout packs and
+        # validates this frozen tree, not the copy's location. REPO_ROOT points
+        # it at the frozen checkout; the tarball it creates is cleaned up by
+        # the harness itself.
+        run: node "$RUNNER_TEMP/package-smoke.mjs"
+        env:
+          REPO_ROOT: ${{ github.workspace }}
 
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
@@ -121,6 +143,17 @@ jobs:
         # --provenance asks the GitHub OIDC provider (id-token: write, above)
         # to sign a sigstore attestation; the temporary NPM_TOKEN authenticates
         # the publish to the registry. Provenance therefore begins with 1.0.0.
-        run: npm publish --access public --provenance
+        #
+        # --ignore-scripts is restricted to this exact-identity recovery. The
+        # frozen tag's prepublishOnly re-runs its own (obsolete) npm-pack
+        # parser, which cannot read npm 12's keyed-object `npm pack --json`
+        # shape. The equivalent-or-stronger checks — frozen `npm run check`,
+        # frozen `npm run typecheck`, and the hardened main-sourced smoke
+        # harness (tarball contents, clean install, and the real Pi loader) —
+        # just completed against this exact frozen tree, and this package has
+        # no prepack/prepare scripts that could change tarball bytes. The
+        # normal publish.yml path keeps running prepublishOnly unchanged; this
+        # bypass applies only to the frozen 1.0.0 recovery.
+        run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
